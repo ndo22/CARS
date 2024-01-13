@@ -8085,7 +8085,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 282450112}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 90d5da16309a5424d9318078e1e935d1, type: 3}
+  m_Script: {fileID: 11500000, guid: 02c94c1a6b9f2694cb7ff2a6cea33007, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
   centerOfMass: {fileID: 777037382}
@@ -8099,6 +8099,7 @@ MonoBehaviour:
   RightBack: {fileID: 145869355}
   motorTorque: 350
   maxSteer: 25
+  minSpeedForEngineSound: 1
 --- !u!54 &282450114
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -8170,11 +8171,11 @@ AudioSource:
   m_Enabled: 1
   serializedVersion: 4
   OutputAudioMixerGroup: {fileID: 0}
-  m_audioClip: {fileID: 8300000, guid: daed0a03dd114ed49a639001eeccc629, type: 3}
+  m_audioClip: {fileID: 8300000, guid: 18f5693e37250e248a98bd952929fcc3, type: 3}
   m_PlayOnAwake: 1
   m_Volume: 1
-  m_Pitch: 1
-  Loop: 0
+  m_Pitch: 0.25
+  Loop: 1
   Mute: 0
   Spatialize: 0
   SpatializePostEffects: 0
@@ -8216,7 +8217,7 @@ AudioSource:
     m_Curve:
     - serializedVersion: 3
       time: 0
-      value: 0
+      value: 1
       inSlope: 0
       outSlope: 0
       tangentMode: 0
@@ -8256,6 +8257,22 @@ AudioSource:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
+--- !u!114 &282450126
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 282450112}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cd62ecc07ae9018478516006f0c18ae8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  minSpeed: 0.3
+  maxSpeed: 40
+  minPitch: 0.2
+  maxPitch: 0
 --- !u!1 &286162193
 GameObject:
   m_ObjectHideFlags: 0
