@@ -16,14 +16,16 @@ public class Player : MonoBehaviour
     private int checkpointCount;
     private int checkpointLayer;
 
-    public Auto carController { get; private set; }
+    public Car carController { get; private set; }
 
     void Awake()
     {
         checkpointsParent = GameObject.Find("Checkpoints").transform;
         checkpointCount = checkpointsParent.childCount;
         checkpointLayer = LayerMask.NameToLayer("Checkpoint");
-        carController = GetComponent<Auto>();
+        carController = GetComponent<Car>();
+
+        FindObjectOfType<AudioManager>().Play("EngineStart");
     }
 
     void StartLap()
