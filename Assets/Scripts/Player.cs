@@ -67,7 +67,6 @@ public class Player : MonoBehaviour
         {
             lastCheckpointPassed++;
         }
-
     }
 
     void Update()
