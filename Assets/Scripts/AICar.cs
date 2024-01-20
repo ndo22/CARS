@@ -2,7 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class AIAuto : MonoBehaviour
+public class AICar : MonoBehaviour
 {
     private Rigidbody _rigidbody;
     public Transform centerOfMass;
