@@ -18519,7 +18519,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 20d4db8938a213142aa89559a3023d66, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
---- !u!114 &661540960
+--- !u!114 &661540963
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -18528,7 +18528,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 661540948}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 24a07be503cd45a43aa70afa342d0709, type: 3}
+  m_Script: {fileID: 11500000, guid: 911b04328904ece4eaf753837f044f19, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
   centerOfMass: {fileID: 688015228}
@@ -18540,8 +18540,8 @@ MonoBehaviour:
   RightFront: {fileID: 47728772}
   LeftBack: {fileID: 1474387676}
   RightBack: {fileID: 137889811}
-  motorTorque: 350
-  maxSteer: 25
+  motorTorque: 150
+  maxSteer: 15
 --- !u!1 &667624281
 GameObject:
   m_ObjectHideFlags: 0
