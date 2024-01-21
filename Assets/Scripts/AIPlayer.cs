@@ -14,39 +14,20 @@ public class AIPlayer : MonoBehaviour
     private int lastCheckpointPassed = 0;
     private int nextCheckpoint = 1;
 
-
     private Transform checkpointsParent;
     private int checkpointCount;
     private int checkpointLayer;
 
-    public AIAuto carController { get; private set; }
-
+    public AICar carController { get; private set; }
 
     private float currentAngle;
     private float gasInput;
 
     private bool isBraking = false;
 
-
-
-    //private void FixedUpdate()
-    //{
-    //    //turn
-    //    ai.directionSteer = checkpointsParent.GetChild(nextCheckpoint).position - this.transform.position;
-    //    ai.rotationSteer = Quaternion.LookRotation(ai.directionSteer);
-    //    this.transform.rotation = Quaternion.Lerp(this.transform.rotation, ai.rotationSteer, TurnSpeed);
-    //
-    //    //move
-    //    rb.AddRelativeForce(Vector3.forward * MoveSpeed, ForceMode.VelocityChange);
-    //}
-
-
-
     void Update()
     {
-
         Vector3 dirToMove = (checkpointsParent.GetChild(nextCheckpoint).position - this.transform.position).normalized;
-
 
         float forwardAmount = 0f;
         float steerAmout = 0f;
@@ -54,29 +35,20 @@ public class AIPlayer : MonoBehaviour
         float dot = Vector3.Dot(transform.forward, dirToMove);
 
         if (dot > 0)
-        {
             forwardAmount = 1f;
-        }
         else 
-        {
             forwardAmount = -1f;
-        }
 
         float angleToDir = Vector3.SignedAngle(transform.forward, dirToMove, Vector3.up);
 
         if (angleToDir  > 0)
-        {
             steerAmout = 1f;
-        }
         else
-        {
             steerAmout = -1f;
-        }
-
+ 
         if (isBraking)
-        {
             forwardAmount *= -1;
-        }
+
         carController.SpeedInput = forwardAmount * 300;
         carController.SteerInput = steerAmout * 10;
     }
@@ -88,7 +60,7 @@ public class AIPlayer : MonoBehaviour
         checkpointsParent = GameObject.Find("Checkpoints").transform;
         checkpointCount = checkpointsParent.childCount;
         checkpointLayer = LayerMask.NameToLayer("Checkpoint");
-        carController = GetComponent<AIAuto>();
+        carController = GetComponent<AICar>();
     }
 
     void StartLap()
@@ -107,17 +79,13 @@ public class AIPlayer : MonoBehaviour
         Debug.Log("Ended Lap - LapTime was " + LastLapTime + "s");
     }
 
-
     private void OnTriggerEnter(Collider collider)
     {
         if (collider.gameObject.layer != checkpointLayer)
-        {
             return;
-        }
 
         if (collider.gameObject.name == "1")
         {
-
             if (lastCheckpointPassed == checkpointCount)
             {
                 EndLap();
@@ -136,13 +104,9 @@ public class AIPlayer : MonoBehaviour
             isBraking = false;
             lastCheckpointPassed++;
             if (lastCheckpointPassed == 15)
-            {
                 nextCheckpoint = 1;
-            }
             else
-            {
                 nextCheckpoint = lastCheckpointPassed + 1;
-            }
         }
     }
 }

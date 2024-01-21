@@ -46,30 +46,20 @@ public class Player : MonoBehaviour
     private void OnTriggerEnter(Collider collider)
     {
         if(collider.gameObject.layer != checkpointLayer)
-        {
             return;
-        }
 
         if (collider.gameObject.name == "1")
         {
-
             if (lastCheckpointPassed == checkpointCount)
-            {
                 EndLap();
-            }
 
             if (CurrentLap == 0 || lastCheckpointPassed == checkpointCount)
-            {
                 StartLap();
-            }
             return;
         }
 
         if (collider.gameObject.name == (lastCheckpointPassed + 1).ToString())
-        {
             lastCheckpointPassed++;
-        }
-
     }
 
     void Update()
