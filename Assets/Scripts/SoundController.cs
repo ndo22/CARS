@@ -11,7 +11,7 @@ public class SoundController : MonoBehaviour
     void Start()
     {
         if(!PlayerPrefs.HasKey("musicVolume")) {
-            PlayerPrefs.SetFloat("musicVolume", 0.5);
+            PlayerPrefs.SetFloat("musicVolume", 0.5f);
             Load();
         } 
     }
