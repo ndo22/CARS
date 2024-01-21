@@ -13,7 +13,11 @@ public class SoundController : MonoBehaviour
         if(!PlayerPrefs.HasKey("musicVolume")) {
             PlayerPrefs.SetFloat("musicVolume", 0.5f);
             Load();
-        } 
+        } else
+        {
+            Load();
+        }
+
     }
     public void ChangeVolume ()
     {
