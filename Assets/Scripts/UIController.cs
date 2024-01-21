@@ -22,6 +22,8 @@ public class UIController : MonoBehaviour
     private float bestLapTime;
     private float bestAILapTime;
 
+    public Leaderboard leaderboard;
+
     void Update()
     {
         if(UpdateUIForPlayer == null && UpdateUIForAIPlayer == null)
@@ -45,6 +47,8 @@ public class UIController : MonoBehaviour
         {
             lastLapTime = UpdateUIForPlayer.LastLapTime;        
             UITextLastLap.text = $"Last: {(int)lastLapTime / 60}:{(lastLapTime) % 60:00.000}";
+
+            leaderboard.AddLeaderboardEntry(lastLapTime);
         }
 
         if (UpdateUIForPlayer.BestLapTime != bestLapTime)
@@ -58,5 +62,7 @@ public class UIController : MonoBehaviour
             bestAILapTime = UpdateUIForAIPlayer.BestLapTime;
             UITextAIBestLap.text = bestAILapTime < 1000000 ? $"CPU Best: {(int)bestAILapTime / 60}:{(bestAILapTime) % 60:00.000}" : "CPU Best: NONE";
         }
+
+
     }
 }

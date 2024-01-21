@@ -24,8 +24,6 @@ public class Player : MonoBehaviour
         checkpointCount = checkpointsParent.childCount;
         checkpointLayer = LayerMask.NameToLayer("Checkpoint");
         carController = GetComponent<Car>();
-
-        FindObjectOfType<AudioManager>().Play("EngineStart");
     }
 
     void StartLap()
