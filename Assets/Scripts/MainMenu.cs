@@ -10,6 +10,12 @@ public class MainMenu : MonoBehaviour
         SceneManager.LoadScene(1);
     }
 
+    /// <summary>Spustí novou procedurální low-poly trať.</summary>
+    public void PlayLowPoly()
+    {
+        SceneManager.LoadScene("LowPolyTrack");
+    }
+
 
     public void QuitGame()
     {

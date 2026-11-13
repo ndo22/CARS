@@ -56,7 +56,14 @@ public abstract class RacerBase : MonoBehaviour
     protected virtual void Update()
     {
         CurrentLapTime = lapStartTime >= 0f ? Time.time - lapStartTime : 0f;
+
+        // Pád mimo mapu
+        if (transform.position.y < fallRespawnHeight)
+            Respawn();
     }
+
+    [Tooltip("Pod touto výškou se auto automaticky vrátí na trať.")]
+    public float fallRespawnHeight = -50f;
 
     /// <summary>Index (v poli checkpoints) checkpointu, kterým má závodník projet jako dalším.</summary>
     public int NextCheckpointIndex => CheckpointCount == 0 ? 0 : lastCheckpointPassed % CheckpointCount;

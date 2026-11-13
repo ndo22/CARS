@@ -9,7 +9,9 @@ using UnityEngine;
 /// </summary>
 public class Leaderboard : MonoBehaviour
 {
-    private const string LeaderboardKey = "leaderboardTable";
+    [Tooltip("Klíč v PlayerPrefs - každá trať může mít vlastní tabulku.")]
+    public string storageKey = "leaderboardTable";
+
     private const int ShownEntries = 5;
     private const int StoredEntries = 20;
     private const float TemplateHeight = 30f;
@@ -95,15 +97,15 @@ public class Leaderboard : MonoBehaviour
     /// <summary>Smaže všechny uložené časy. Dá se napojit na tlačítko v inspektoru.</summary>
     public void ResetLeaderboard()
     {
-        PlayerPrefs.DeleteKey(LeaderboardKey);
+        PlayerPrefs.DeleteKey(storageKey);
         PlayerPrefs.Save();
         Refresh();
     }
 
-    private static LeaderboardList Load()
+    private LeaderboardList Load()
     {
         LeaderboardList list = null;
-        string json = PlayerPrefs.GetString(LeaderboardKey, string.Empty);
+        string json = PlayerPrefs.GetString(storageKey, string.Empty);
         if (!string.IsNullOrEmpty(json))
         {
             try { list = JsonUtility.FromJson<LeaderboardList>(json); }
@@ -129,10 +131,10 @@ public class Leaderboard : MonoBehaviour
         return list;
     }
 
-    private static void Save(LeaderboardList list)
+    private void Save(LeaderboardList list)
     {
         list.entries = list.entries.OrderBy(e => e.seconds).Take(StoredEntries).ToList();
-        PlayerPrefs.SetString(LeaderboardKey, JsonUtility.ToJson(list));
+        PlayerPrefs.SetString(storageKey, JsonUtility.ToJson(list));
         PlayerPrefs.Save();
     }
 

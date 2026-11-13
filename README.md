@@ -25,3 +25,19 @@ Závodní hra v Unity (2021.3): hráč proti počítači na okruhu s checkpointy
 - `Leaderboard` – 5 nejlepších časů, ukládané do `PlayerPrefs`.
 
 Většinu parametrů (rychlost a obtížnost AI, síla brzd, přítlak…) jde ladit v Inspectoru.
+
+## Low-poly trať
+
+V hlavním menu je tlačítko **LOW POLY**, které spustí scénu `LowPolyTrack`. Celá scéna se postaví
+kódem při spuštění (ve scéně je jen objekt `LowPolyRace` se skriptem `LowPolyRaceBootstrap`):
+
+- `TrackGenerator` – okruh (~1,4 km) z hladké křivky přes kontrolní body: asfalt, obrubníky v zatáčkách,
+  svodidla, startovní brána, 58 checkpointů, kopcovitý terén s horami, stromy, kameny a mraky.
+- `LowPolyCarFactory` – auta ve třech stylech (Sport, Muscle, Hatch) včetně fyziky kol.
+- `LowPolyRaceBootstrap` – světlo, mlha, kamery, HUD a pauzovací menu. V Inspectoru jde měnit
+  barvy a styl aut, obtížnost AI, tvar trati (`track.controlPoints`), šířku silnice, počet stromů…
+
+![Auta](Docs/lowpoly-cars.png)
+![Trať](Docs/lowpoly-track.png)
+
+*(Náhledy jsou vyrenderované mimo Unity ze stejných meshů – ve hře budou mít stíny a lepší osvětlení.)*

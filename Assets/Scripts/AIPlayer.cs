@@ -11,8 +11,12 @@ public class AIPlayer : RacerBase
     public float straightSpeedKmh = 150f;
     [Tooltip("Rychlost v ostré (90°) zatáčce v km/h.")]
     public float cornerSpeedKmh = 55f;
-    [Tooltip("Od jaké vzdálenosti před checkpointem začne AI zpomalovat na rychlost zatáčky (m).")]
-    public float brakingDistance = 40f;
+    [Tooltip("Úhel zatáčky (mezi dvěma úseky checkpointů), při kterém AI zpomalí až na cornerSpeedKmh.")]
+    public float cornerAngleForMinSpeed = 90f;
+    [Tooltip("Kolik checkpointů dopředu AI sleduje zatáčky. Pro hustě rozmístěné checkpointy dej víc.")]
+    public int cornerLookAhead = 2;
+    [Tooltip("O kolik km/h může být AI rychlejší za každý metr před zatáčkou (jak prudce brzdí).")]
+    public float brakingSlope = 1.4f;
 
     [Header("Řízení")]
     [Tooltip("Jak daleko před checkpointem se AI začne natáčet k dalšímu (m). Vyhlazuje průjezd zatáčkou.")]
@@ -60,11 +64,22 @@ public class AIPlayer : RacerBase
         float angleToAim = Mathf.Atan2(local.x, local.z) * Mathf.Rad2Deg;
         float steer = Mathf.Clamp(angleToAim / Mathf.Max(1f, carController.maxSteer), -1f, 1f);
 
-        // Jak ostrá je zatáčka na příštím checkpointu
-        float cornerAngle = Vector3.Angle(toTarget, Flat(after.position - target.position));
-        float cornerSpeed = Mathf.Lerp(straightSpeedKmh, cornerSpeedKmh, Mathf.Clamp01(cornerAngle / 90f));
-        float approach = Mathf.Clamp01(1f - distance / Mathf.Max(1f, brakingDistance));
-        float desiredSpeed = Mathf.Lerp(straightSpeedKmh, cornerSpeed, approach);
+        // Projít několik dalších úseků mezi checkpointy a najít nejpomalejší zatáčku,
+        // přičemž vzdálenější zatáčka dovolí jet zatím rychleji (stihne se ubrzdit)
+        float desiredSpeed = straightSpeedKmh;
+        float distanceToCorner = distance;
+        Vector3 previousDir = toTarget;
+        for (int j = 0; j < Mathf.Max(1, cornerLookAhead); j++)
+        {
+            Vector3 a = checkpoints[(NextCheckpointIndex + j) % CheckpointCount].position;
+            Vector3 b = checkpoints[(NextCheckpointIndex + j + 1) % CheckpointCount].position;
+            Vector3 segment = Flat(b - a);
+            float cornerAngle = Vector3.Angle(previousDir, segment);
+            float cornerSpeed = Mathf.Lerp(straightSpeedKmh, cornerSpeedKmh, Mathf.Clamp01(cornerAngle / Mathf.Max(1f, cornerAngleForMinSpeed)));
+            desiredSpeed = Mathf.Min(desiredSpeed, cornerSpeed + distanceToCorner * brakingSlope);
+            distanceToCorner += segment.magnitude;
+            previousDir = segment;
+        }
         // Když auto zrovna hodně zatáčí, ubrat
         desiredSpeed *= Mathf.Lerp(1f, 0.6f, Mathf.Clamp01(Mathf.Abs(angleToAim) / 60f));
         desiredSpeed *= skill;
