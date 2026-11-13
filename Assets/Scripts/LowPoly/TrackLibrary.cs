@@ -65,11 +65,35 @@ public static class TrackLibrary
                 new Vector3(120, 1, -150), new Vector3(60, 1, -170), new Vector3(15, 0, -140),
             },
         },
+        new TrackDefinition
+        {
+            id = "city", name = "NEON CITY", description = "Night street circuit between skyscrapers",
+            theme = TrackTheme.City, seed = 2077, heightScale = 1f, roadWidth = 13f,
+            points = new[]
+            {
+                new Vector3(0, 0, -120), new Vector3(0, 0, 90), new Vector3(10, 0, 125), new Vector3(45, 0, 135),
+                new Vector3(150, 0, 135), new Vector3(185, 0, 125), new Vector3(195, 0, 90), new Vector3(195, 0, 40),
+                new Vector3(205, 0, 15), new Vector3(240, 0, 5), new Vector3(330, 0, 5), new Vector3(360, 0, -10),
+                new Vector3(370, 0, -45), new Vector3(360, 0, -80), new Vector3(330, 0, -95), new Vector3(130, 0, -95),
+                new Vector3(100, 0, -105), new Vector3(90, 0, -135), new Vector3(80, 0, -170), new Vector3(50, 0, -185),
+                new Vector3(25, 0, -180), new Vector3(5, 0, -160),
+            },
+        },
     };
 
-    public static TrackGenerator.TrackSettings Settings(TrackDefinition d)
+    /// <summary>Téma tratě s ohledem na zvolenou denní dobu a počasí.</summary>
+    public static TrackTheme Theme(TrackDefinition d, bool night, bool rain)
     {
-        TrackTheme theme = d.theme();
+        TrackTheme t = d.theme();
+        if (night) t.ApplyNight();
+        t.Finish();
+        if (rain) t.ApplyRain();
+        return t;
+    }
+
+    public static TrackGenerator.TrackSettings Settings(TrackDefinition d, TrackTheme theme = null)
+    {
+        theme = theme ?? d.theme();
         return new TrackGenerator.TrackSettings
         {
             controlPoints = d.points,

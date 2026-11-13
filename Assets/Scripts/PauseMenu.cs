@@ -15,7 +15,7 @@ public class PauseMenu : MonoBehaviour
 
     void Update()
     {
-        if (Input.GetKeyDown(KeyCode.Escape) || Input.GetKeyDown(KeyCode.P))
+        if (GameInput.Pressed(GameInput.Action.Pause))
         {
             if (GameIsPaused)
                 Resume();
@@ -48,6 +48,8 @@ public class PauseMenu : MonoBehaviour
     public void LoadMenu()
     {
         Resume();
+        RaceSetup.configured = false;
+        RaceSetup.screen = RaceSetup.Screen.Title;
         SceneManager.LoadScene(0);
     }
 

@@ -26,42 +26,55 @@ Závodní hra v Unity (2021.3): hráč proti počítači na okruhu s checkpointy
 
 Většinu parametrů (rychlost a obtížnost AI, síla brzd, přítlak…) jde ladit v Inspectoru.
 
-## Low-poly závody
+## Low-poly závody (hlavní scéna)
 
-V hlavním menu je tlačítko **LOW POLY**. Otevře startovní obrazovku s živým 3D náhledem, kde si vybereš:
+Hra startuje scénou `LowPolyTrack` – titulní menu: **QUICK RACE**, **CHAMPIONSHIP**, **TIME TRIAL**,
+**CLASSIC TRACK** (původní trať), **SETTINGS**.
 
-- **trať**: 4 okruhy, každý s vlastním prostředím,
-- **auto**: Sport, Muscle nebo Hatch a jednu z 8 barev,
-- **soupeře** (1/3/5), **obtížnost** (Easy/Normal/Hard) a **počet kol** (1/3/5).
+### Ovládání (přemapovatelné v Settings, funguje i gamepad)
 
-| Trať | Délka | Prostředí |
+| Akce | Klávesnice | Gamepad |
 |---|---|---|
-| GREEN VALLEY | 1,4 km | louky, borovice, větrné mlýny, hory se sněhem |
-| DESERT CANYON | 1,8 km | rychlá poušť, kaktusy, červené stolové hory |
-| ALPINE PASS | 1,2 km | technická, 20 m převýšení, zasněžené smrky, chaty, sněhuláci |
-| SUNSET COAST | 1,3 km | ostrov v moři, laguny, pláže, palmy, maják |
+| Plyn / brzda | W / S (šipky) | RT / LT (nebo páčka) |
+| Zatáčení | A / D | levá páčka |
+| Ruční brzda – drift | mezerník | X |
+| Nitro | Shift | A |
+| Reset na trať | R | Back |
+| Kamera | C | Y |
+| Pauza | Esc / P | Start |
+| Ladicí okno | F1 | – |
 
-Závod: odpočet, startovní rošt (hráč startuje poslední), minimapa, pořadí, stopy smyku,
-„FINAL LAP!“, cíl a výsledková obrazovka (pořadí, celkový čas, nejlepší kolo, rekord tratě).
-Každá trať má vlastní tabulku nejlepších kol.
+### Co hra umí
 
-### Jak to funguje
+- **5 tratí**: Green Valley, Desert Canyon, Alpine Pass, Sunset Coast, Neon City (noční městský okruh).
+- **Den / noc a sucho / déšť** pro každou trať – v noci svítí lampy a světla aut, v dešti klouže silnice (na sněhu sněží).
+- **6 aut** s vlastními vlastnostmi (rychlost, zrychlení, přilnavost, ovladatelnost):
+  Sport, Muscle, Hatch, **Pickup** (1 výhra), **Buggy** (3 výhry), **Formula** (vítězství v šampionátu).
+  Zlatá a chromová barva se odemknou vítězstvím v šampionátu.
+- **Drift a nitro** – smyk na ruční brzdě nabíjí nitro.
+- **Kolize** mezi auty, AI předjíždí, vyhýbá se a používá nitro na rovinkách.
+- **Šampionát** přes všechny tratě (body 10-6-4-3-2-1), **časovka s ghostem** nejlepšího kola.
+- Efekty: stopy smyku, kouř, prach a zpomalení mimo silnici, cákání v dešti, jiskry při nárazu,
+  plameny nitra, zorné pole podle rychlosti, třesení kamery, pískání pneumatik.
+- Gradientová obloha, stíny mraků, vlnící se voda a stromy, vlastní postprocessing (bloom, barvy, vinětace).
+- **Procedurální hudba a zvuky** (generované kódem, bez licencí).
+- Náhled tratě v editoru: menu **CARS → Low Poly → Preview …** (do scény se neukládá).
 
-Scéna `LowPolyTrack` obsahuje jen objekt `LowPolyRace` se skriptem `LowPolyRaceBootstrap`, všechno ostatní vzniká kódem:
+### Struktura kódu
 
-- `TrackLibrary` – seznam tratí (kontrolní body, téma, šířka, seed). **Novou trať přidáš jedním záznamem.**
-- `TrackTheme` – barvy, světlo, mlha, typ krajiny a dekorací (Meadow / Desert / Snow / Coast).
-- `TrackGenerator` – silnice, obrubníky, svodidla, startovní brána se semaforem, tribuna s diváky,
-  vlajky, pneumatiky v zatáčkách, checkpointy, terén, voda a dekorace.
-- `LowPolyCarFactory` – auta včetně fyziky kol; `CarEffects` + `SkidMarks` – stopy smyku.
-- `Minimap`, `OrbitCamera`, `LowPolyUI` – minimapa, kamera v menu, stavění UI.
-- `RaceSetup` – volby z menu (přežijí restart závodu).
+- `Core/` – `GameInput` (klávesy + gamepad), `GameSettings` (hlasitosti, grafika).
+- `LowPoly/` – generátor tratí (`TrackGenerator`, `TrackLibrary`, `TrackTheme`), auta (`LowPolyCarFactory`),
+  menu a závod (`LowPolyRaceBootstrap` + `.Menu.cs` + `.Race.cs`), `RaceSetup` (volby, šampionát, odemykání).
+- `Effects/` – částice, zvuky, ghost, kamera, obloha a počasí, postprocessing, ladicí okno.
+- `Shaders/` – obloha, voda, listí, ghost, postprocessing. Když shader nejde, použije se Standard.
+- `Editor/` – náhled tratě v editoru.
 
-Písmo Aquire nemá znaky `:` a `/`, proto low-poly UI píše časy závodním zápisem `1'05"123`.
+Novou trať přidáš jedním záznamem v `TrackLibrary.All`.
 
 ![Menu](Docs/lowpoly-menu.png)
 ![Závod](Docs/lowpoly-hud.png)
 ![Tratě](Docs/lowpoly-tracks.png)
+![Neon City](Docs/lowpoly-city.png)
 ![Auta](Docs/lowpoly-cars.png)
 
-*(Náhledy jsou vyrenderované mimo Unity ze stejných meshů a se stejným rozložením UI, ve hře budou mít stíny a lepší osvětlení.)*
+*(Náhledy jsou vyrenderované mimo Unity ze stejných meshů – bez stínů, světel a postprocessingu.)*

@@ -17,6 +17,17 @@ public abstract class RacerBase : MonoBehaviour
 
     /// <summary>Vyvolá se po dokončení kola, parametr je čas kola v sekundách.</summary>
     public event Action<float> LapCompleted;
+    /// <summary>Vyvolá se při průjezdu startovní čárou na začátku každého kola.</summary>
+    public event Action LapStarted;
+
+    /// <summary>Jméno závodníka do výsledků (např. "YOU", "VIPER").</summary>
+    public string DisplayName { get; set; } = "";
+
+    /// <summary>Všichni závodníci ve scéně (pro pořadí a vyhýbání AI).</summary>
+    public static readonly List<RacerBase> All = new List<RacerBase>();
+
+    protected virtual void OnEnable() { if (!All.Contains(this)) All.Add(this); }
+    protected virtual void OnDisable() { All.Remove(this); }
 
     protected Transform[] checkpoints = new Transform[0];
     protected int CheckpointCount => checkpoints.Length;
@@ -98,6 +109,7 @@ public abstract class RacerBase : MonoBehaviour
         CurrentLap++;
         lastCheckpointPassed = 1;
         lapStartTime = Time.time;
+        LapStarted?.Invoke();
     }
 
     private void EndLap()
@@ -125,6 +137,14 @@ public abstract class RacerBase : MonoBehaviour
         // Checkpointy se musí projet popořadě, jinak se nepočítají (žádné zkratky)
         if (other.gameObject.name == (lastCheckpointPassed + 1).ToString())
             lastCheckpointPassed++;
+    }
+
+    /// <summary>Poloviční šířka silnice podle checkpointu (checkpoint je široký jako prostor mezi svodidly).</summary>
+    public float RoadHalfWidth(int checkpointIndex)
+    {
+        if (CheckpointCount == 0) return 6f;
+        var box = checkpoints[checkpointIndex % CheckpointCount].GetComponent<BoxCollider>();
+        return box != null ? Mathf.Max(3f, box.size.x * 0.5f - 5f) : 6f;
     }
 
     /// <summary>Vrátí auto na trať k poslednímu projetému checkpointu, natočené směrem k dalšímu.</summary>

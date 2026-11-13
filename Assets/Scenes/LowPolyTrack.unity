@@ -172,3 +172,8 @@ MonoBehaviour:
   numberFont: {fileID: 12800000, guid: dc8cdedad2a922446aa584a08e4965d2, type: 3}
   tmpFont: {fileID: 11400000, guid: 19efb52451132d14d8e81b6fb2048f24, type: 2}
   engineClip: {fileID: 8300000, guid: 18f5693e37250e248a98bd952929fcc3, type: 3}
+  skyShader: {fileID: 4800000, guid: 2d3c05f5598b4f99998693f6feeb16dc, type: 3}
+  waterShader: {fileID: 4800000, guid: 9b421d8f15914c368d1c84ac5fc3d9b0, type: 3}
+  foliageShader: {fileID: 4800000, guid: 6108d45918da4b469a3493e4bcafd79f, type: 3}
+  ghostShader: {fileID: 4800000, guid: 72d549c58dab46109e93e6b8adc60a6a, type: 3}
+  postFxShader: {fileID: 4800000, guid: 04bfa96f100842a2b594c844f3401bdd, type: 3}

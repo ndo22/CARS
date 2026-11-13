@@ -11,4 +11,5 @@ public class AICar : CarController
     public float Steer { get => steerInput; set => steerInput = Mathf.Clamp(value, -1f, 1f); }
     /// <summary>0 .. 1</summary>
     public float Brake { get => brakeInput; set => brakeInput = Mathf.Clamp01(value); }
+    public bool UseNitro { get => nitroInput; set => nitroInput = value; }
 }

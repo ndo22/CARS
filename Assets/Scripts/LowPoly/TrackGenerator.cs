@@ -80,6 +80,7 @@ public static class TrackGenerator
         BuildBarriers(parent, track, s, palette);
         BuildStartGate(parent, track, s, palette);
         BuildTrackside(parent, track, isCorner, s, palette, rng);
+        if (theme.night) BuildLamps(parent, track, s, palette);
         BuildCheckpoints(parent, track, s);
         BuildTerrainAndScenery(parent, track, s, theme, palette, rng);
 
@@ -152,8 +153,9 @@ public static class TrackGenerator
 
     private static void BuildRoad(Transform parent, TrackResult t, bool[] curb, TrackSettings s, IPalette palette, System.Random rng)
     {
-        const int asphaltA = 0, asphaltB = 1, line = 2, curbA = 3, curbB = 4, vergeA = 5, vergeB = 6;
-        var mb = new MeshBuilder(7);
+        const int asphaltA = 0, asphaltB = 1, line = 2, curbA = 3, curbB = 4;
+        var mb = new MeshBuilder(5);
+        var vergeMb = new MeshBuilder(2);
         int n = t.centers.Length;
         float hw = s.roadWidth * 0.5f;
         const float curbWidth = 1.4f;
@@ -188,14 +190,18 @@ public static class TrackGenerator
                 Strip(mb, line, c0, c1, r0, r1, -hw + 0.2f, -hw + 0.5f, 0.02f);
             }
 
-            int verge = Rand(rng) < 0.5f ? vergeA : vergeB;
-            Strip(mb, verge, c0, c1, r0, r1, edge, vergeEnd, -0.03f);
-            Strip(mb, verge, c0, c1, r0, r1, -vergeEnd, -edge, -0.03f);
+            int verge = Rand(rng) < 0.5f ? 0 : 1;
+            Strip(vergeMb, verge, c0, c1, r0, r1, edge, vergeEnd, -0.03f);
+            Strip(vergeMb, verge, c0, c1, r0, r1, -vergeEnd, -edge, -0.03f);
         }
 
         var go = CreateMeshObject("Road", parent, mb.ToMesh("Road"), palette,
-            "asphaltA", "asphaltB", "line", "curbA", "curbB", "vergeA", "vergeB");
+            "asphaltA", "asphaltB", "line", "curbA", "curbB");
         go.AddComponent<MeshCollider>().sharedMesh = go.GetComponent<MeshFilter>().sharedMesh;
+
+        // Krajnice zvlášť - podle jména collideru auto pozná, že jede mimo silnici (prach, zpomalení)
+        var vergeGo = CreateMeshObject("Verge", parent, vergeMb.ToMesh("Verge"), palette, "vergeA", "vergeB");
+        vergeGo.AddComponent<MeshCollider>().sharedMesh = vergeGo.GetComponent<MeshFilter>().sharedMesh;
     }
 
     /// <summary>Pruh rovnoběžný se středem trati mezi bočními odsazeními <paramref name="from"/> a <paramref name="to"/>.</summary>
@@ -408,6 +414,7 @@ public static class TrackGenerator
         public float Height(float x, float z)
         {
             NearestOnTrack(track, x, z, out float dist, out float roadY);
+            if (theme.flatGround) return roadY - 0.4f;
             float hills = (Mathf.PerlinNoise(x * 0.007f + noiseOffset, z * 0.007f + noiseOffset) - 0.4f) * theme.hillAmplitude
                         + (Mathf.PerlinNoise(x * 0.02f + noiseOffset, z * 0.02f) - 0.5f) * 8f;
 
@@ -460,7 +467,7 @@ public static class TrackGenerator
             {
                 float x = ctx.min.x + ix * cell, z = ctx.min.z + iz * cell;
                 float h = ctx.Height(x, z);
-                if (ctx.Distance(x, z) > ctx.flatZone + 15f)
+                if (!theme.flatGround && ctx.Distance(x, z) > ctx.flatZone + 15f)
                 {
                     // Trochu náhodného posunu - typický low-poly "zubatý" terén
                     x += (Rand(rng) - 0.5f) * cell * 0.4f;
@@ -537,6 +544,11 @@ public static class TrackGenerator
         if (ctx.theme.hasWater && y < ctx.waterLevel + 2.2f) sub = 5;       // pláž
         else if (h > ctx.theme.snowLine) sub = 4;                            // sníh na vrcholcích
         else if (h > ctx.theme.rockLine || slope > 36f) sub = 3;             // skály
+        else if (ctx.theme.flatGround)                                       // město: dlažba, parky podle šumu
+        {
+            Vector3 mid = (a + b + c) / 3f;
+            sub = Mathf.PerlinNoise(mid.x * 0.004f + 7f, mid.z * 0.004f + 3f) > 0.7f ? 2 : rng.Next(2);
+        }
         else sub = rng.Next(3);                                              // tři odstíny trávy / písku
         mb.TriFacing(sub, a, b, c, Vector3.up);
     }
@@ -563,7 +575,7 @@ public static class TrackGenerator
         {
             if (!RandomSpot(ctx, rng, ctx.flatZone + 2f, 40f, out Vector3 p)) continue;
             // Lesy/skupiny - hustota podle šumu
-            if (Mathf.PerlinNoise(p.x * 0.012f + 50f, p.z * 0.012f + 50f) < 0.45f && Rand(rng) < 0.85f) continue;
+            if (style != TrackTheme.Scenery.City && Mathf.PerlinNoise(p.x * 0.012f + 50f, p.z * 0.012f + 50f) < 0.45f && Rand(rng) < 0.85f) continue;
 
             p.y -= 0.4f;
             float size = Rand(rng, 0.8f, 1.6f);
@@ -576,6 +588,10 @@ public static class TrackGenerator
                 case TrackTheme.Scenery.Snow:
                     if (Rand(rng) < 0.85f) SnowPine(mb, p, size, rng);
                     else Pine(mb, p, size, rng);
+                    break;
+                case TrackTheme.Scenery.City:
+                    if (Mathf.PerlinNoise(p.x * 0.004f + 7f, p.z * 0.004f + 3f) > 0.72f) RoundTree(mb, p, size, rng);
+                    else continue;
                     break;
                 case TrackTheme.Scenery.Coast:
                     if (Rand(rng) < 0.55f) Palm(mb, p, size, rng);
@@ -659,6 +675,10 @@ public static class TrackGenerator
                     Lighthouse(mb, parent, new Vector3(x, h - 0.5f, z), palette);
                     break;
                 }
+                break;
+
+            case TrackTheme.Scenery.City:
+                BuildCity(parent, ctx, palette, rng);
                 break;
 
             case TrackTheme.Scenery.Snow:
@@ -875,6 +895,103 @@ public static class TrackGenerator
         mb.Box(ScAccentC, p + rot * new Vector3(0f, 1.1f, 2.52f), new Vector3(1.2f, 2.2f, 0.1f), rot);
         mb.Box(ScAccentB, p + rot * new Vector3(1.8f, 2f, 2.52f), new Vector3(1.1f, 1f, 0.1f), rot);
         mb.Box(ScRock, p + rot * new Vector3(-2f, 6f, 0f), new Vector3(0.8f, 2.4f, 0.8f), rot);
+    }
+
+    // ---------------------------------------------------------------- noc
+
+    /// <summary>Pouliční lampy podél trati se skutečnými světly (jen v noci).</summary>
+    private static void BuildLamps(Transform parent, TrackResult t, TrackSettings s, IPalette palette)
+    {
+        var mb = new MeshBuilder(2);
+        var root = new GameObject("Lamps").transform;
+        root.SetParent(parent, false);
+        int n = t.centers.Length;
+        float offset = s.roadWidth * 0.5f + s.barrierOffset + 1.2f;
+        const float height = 7.5f;
+        for (int i = 0, k = 0; i < n; i += 9, k++)
+        {
+            float side = k % 2 == 0 ? 1f : -1f;
+            Vector3 basePos = t.Center(i) + t.Right(i) * side * offset + Vector3.down * 0.4f;
+            Vector3 toRoad = -t.Right(i) * side;
+            mb.Cylinder(0, basePos, 0.14f, 0.1f, height, 6);
+            Vector3 armEnd = basePos + Vector3.up * height + toRoad * 2.4f;
+            mb.Box(0, (basePos + Vector3.up * height + armEnd) * 0.5f, new Vector3(0.12f, 0.12f, 2.4f), Quaternion.LookRotation(toRoad, Vector3.up));
+            mb.Box(1, armEnd - Vector3.up * 0.12f, new Vector3(0.7f, 0.16f, 0.45f), Quaternion.LookRotation(toRoad, Vector3.up));
+
+            var lightGo = new GameObject("LampLight");
+            lightGo.transform.SetParent(root, false);
+            lightGo.transform.position = armEnd - Vector3.up * 0.6f;
+            var light = lightGo.AddComponent<Light>();
+            light.type = LightType.Point;
+            light.range = 24f;
+            light.intensity = 1.5f;
+            light.color = new Color(1f, 0.82f, 0.55f);
+            light.shadows = LightShadows.None;
+        }
+        var go = CreateMeshObject("LampPosts", root, mb.ToMesh("Lamps"), palette, "metal", "lamp");
+        go.layer = 2;
+    }
+
+    /// <summary>Město: mrakodrapy s rozsvícenými okny, neonové reklamy, střechy.</summary>
+    private static void BuildCity(Transform parent, TerrainContext ctx, IPalette palette, System.Random rng)
+    {
+        const int body0 = 0, windowA = 3, windowB = 4, windowC = 5, neonA = 6, neonB = 7, roof = 8;
+        var mb = new MeshBuilder(9);
+        const float cell = 30f;
+        for (float x = ctx.min.x + 40f; x < ctx.max.x - 40f; x += cell)
+        {
+            for (float z = ctx.min.z + 40f; z < ctx.max.z - 40f; z += cell)
+            {
+                float px = x + Rand(rng, -4f, 4f), pz = z + Rand(rng, -4f, 4f);
+                float w = Rand(rng, 12f, 22f), d = Rand(rng, 12f, 22f);
+                float dist = ctx.Distance(px, pz);
+                if (dist < ctx.flatZone + Mathf.Max(w, d) * 0.75f) continue;
+                if (Mathf.PerlinNoise(px * 0.004f + 7f, pz * 0.004f + 3f) > 0.68f) continue; // park
+                // Blíž k trati nižší domy, dál mrakodrapy
+                float h = Rand(rng, 10f, 26f) + Mathf.Clamp01((dist - 40f) / 200f) * Rand(rng, 10f, 70f);
+                Vector3 b = new Vector3(px, ctx.Height(px, pz) - 0.3f, pz);
+                Building(mb, b, w, d, h, body0 + rng.Next(3), rng, windowA, windowB, windowC, neonA, neonB, roof);
+            }
+        }
+        var go = CreateMeshObject("City", parent, mb.ToMesh("City"), palette,
+            "accentA", "accentB", "accentC", "windowA", "windowB", "windowC", "neonA", "neonB", "roof");
+        go.AddComponent<MeshCollider>().sharedMesh = go.GetComponent<MeshFilter>().sharedMesh;
+    }
+
+    private static void Building(MeshBuilder mb, Vector3 b, float w, float d, float h, int bodySub, System.Random rng,
+        int windowA, int windowB, int windowC, int neonA, int neonB, int roof)
+    {
+        mb.Box(bodySub, b + Vector3.up * (h * 0.5f), new Vector3(w, h, d));
+        mb.Box(roof, b + Vector3.up * (h + 0.3f), new Vector3(w - 1f, 0.6f, d - 1f));
+        if (Rand(rng) < 0.6f) mb.Box(roof, b + new Vector3(Rand(rng, -w * 0.3f, w * 0.3f), h + 1.5f, Rand(rng, -d * 0.3f, d * 0.3f)), new Vector3(3f, 2f, 3f));
+
+        int windowSub = Rand(rng) < 0.6f ? windowA : (Rand(rng) < 0.5f ? windowB : windowC);
+        const float floor = 3.6f, spacing = 3.2f;
+        float lit = Rand(rng, 0.35f, 0.75f);
+        // Okna na všech čtyřech stěnách (jen ploché čtyřúhelníky, ať je to levné)
+        for (int face = 0; face < 4; face++)
+        {
+            Vector3 normal = face == 0 ? Vector3.forward : face == 1 ? Vector3.back : face == 2 ? Vector3.right : Vector3.left;
+            Vector3 along = face < 2 ? Vector3.right : Vector3.forward;
+            float half = face < 2 ? w * 0.5f : d * 0.5f;
+            float depth = face < 2 ? d * 0.5f : w * 0.5f;
+            for (float y = 3f; y < h - 1.5f; y += floor)
+            {
+                for (float a = -half + 2f; a < half - 1.5f; a += spacing)
+                {
+                    if (Rand(rng) > lit) continue;
+                    Vector3 c = b + Vector3.up * y + normal * (depth + 0.03f) + along * a;
+                    Vector3 u = along * 0.8f, v = Vector3.up * 0.9f;
+                    mb.QuadFacing(windowSub, c - u - v, c + u - v, c + u + v, c - u + v, normal);
+                }
+            }
+        }
+        // Neonová reklama na střeše nebo boku
+        if (Rand(rng) < 0.35f)
+        {
+            int neon = Rand(rng) < 0.5f ? neonA : neonB;
+            mb.Box(neon, b + Vector3.up * (h + 2.2f) + Vector3.forward * (d * 0.5f - 0.5f), new Vector3(w * 0.7f, 2.4f, 0.3f));
+        }
     }
 
     // ---------------------------------------------------------------- pomocné

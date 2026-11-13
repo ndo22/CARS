@@ -1,30 +1,38 @@
 ﻿using UnityEngine;
 
 /// <summary>
-/// Auto ovládané hráčem.
-/// W/S nebo šipky = plyn / brzda (při stání couvání), A/D = zatáčení, mezerník = ruční brzda.
+/// Auto ovládané hráčem (klávesnice nebo gamepad, viz <see cref="GameInput"/>).
+/// Výchozí klávesy: W/S plyn a brzda (při stání couvání), A/D zatáčení, mezerník ruční brzda (drift), Shift nitro.
 /// </summary>
 public class Car : CarController
 {
+    [Tooltip("Jak rychle se kola natáčejí (vyhlazení vstupu z klávesnice).")]
+    public float steerSpeed = 4f;
+
+    private float smoothSteer;
+
     protected override void Update()
     {
         base.Update();
 
-        float vertical = Input.GetAxis("Vertical");
+        float gas = GameInput.Throttle();
+        float reverse = GameInput.Brake();
         float forwardSpeed = ForwardSpeedKmh;
 
         throttleInput = 0f;
         brakeInput = 0f;
 
-        // Šipka dolů za jízdy vpřed brzdí, teprve po zastavení couvá (a naopak)
-        if (vertical < 0f && forwardSpeed > 3f)
-            brakeInput = -vertical;
-        else if (vertical > 0f && forwardSpeed < -3f)
-            brakeInput = vertical;
+        // Brzda za jízdy vpřed brzdí, teprve po zastavení couvá (a plyn při couvání brzdí)
+        if (reverse > 0.05f && forwardSpeed > 3f)
+            brakeInput = reverse;
+        else if (gas > 0.05f && forwardSpeed < -3f)
+            brakeInput = gas;
         else
-            throttleInput = vertical;
+            throttleInput = gas - reverse;
 
-        steerInput = Input.GetAxis("Horizontal");
-        handbrakeInput = Input.GetKey(KeyCode.Space);
+        smoothSteer = Mathf.MoveTowards(smoothSteer, GameInput.Steer(), steerSpeed * Time.deltaTime);
+        steerInput = smoothSteer;
+        handbrakeInput = GameInput.Held(GameInput.Action.Handbrake);
+        nitroInput = GameInput.Held(GameInput.Action.Nitro);
     }
 }

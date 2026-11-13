@@ -6,7 +6,7 @@ using UnityEngine;
 /// </summary>
 public class TrackTheme
 {
-    public enum Scenery { Meadow, Desert, Snow, Coast }
+    public enum Scenery { Meadow, Desert, Snow, Coast, City }
 
     public string name;
     public Scenery scenery;
@@ -27,6 +27,16 @@ public class TrackTheme
     public bool seaEast;
     public float rockLine = 30f, snowLine = 55f;
     public int treeCount = 600, rockCount = 70, cloudCount = 18;
+    [Tooltip("Rovný terén bez kopců (město).")]
+    public bool flatGround;
+
+    // Denní doba a počasí (nastaví ApplyNight / ApplyRain)
+    public bool night;
+    public bool forceNight;
+    public bool rain;
+    public bool wetRoad;
+    /// <summary>Barvy oblohy pro gradient (nahoře / u obzoru / dole).</summary>
+    public Color skyTop, skyBottom;
 
     /// <summary>Barvy podle klíčů, na které se ptá generátor tratě.</summary>
     public readonly Dictionary<string, Color> colors = new Dictionary<string, Color>();
@@ -56,6 +66,86 @@ public class TrackTheme
             .Set("tire", 0x1C1C1F).Set("seat", 0x2E6FD9).Set("roof", 0xF2F2F2)
             .Set("crowdA", 0xF2C21F).Set("crowdB", 0xE64D4D).Set("crowdC", 0x4DB3E6).Set("crowdD", 0xF2F2F2)
             .Set("flagA", 0xF2C21F).Set("flagB", 0x2E6FD9).Set("water", 0x2E8CC7).Set("low", 0xE8D49B);
+    }
+
+    /// <summary>Doplní výchozí barvy gradientu oblohy podle barvy obzoru.</summary>
+    public TrackTheme Finish()
+    {
+        if (skyTop.a == 0f) skyTop = Color.Lerp(sky, new Color(0.25f, 0.45f, 0.85f), 0.55f);
+        if (skyBottom.a == 0f) skyBottom = Color.Lerp(sky, ambientGround, 0.5f);
+        if (forceNight && !night) ApplyNight();
+        return this;
+    }
+
+    /// <summary>Noc: tmavá obloha, měsíc místo slunce, rozsvícené lampy a světla aut.</summary>
+    public TrackTheme ApplyNight()
+    {
+        night = true;
+        Color navy = new Color(0.04f, 0.06f, 0.14f);
+        sky = Color.Lerp(sky, navy, 0.88f);
+        skyTop = new Color(0.01f, 0.02f, 0.06f);
+        skyBottom = navy * 0.6f;
+        fogEnd *= 0.7f;
+        fogStart *= 0.5f;
+        sun = new Color(0.55f, 0.65f, 1f);
+        sunIntensity = 0.3f;
+        sunEuler = new Vector3(42f, 150f, 0f);
+        ambientSky = Color.Lerp(ambientSky, navy, 0.75f) * 0.6f;
+        ambientEquator = Color.Lerp(ambientEquator, navy, 0.75f) * 0.5f;
+        ambientGround = ambientGround * 0.2f;
+        colors["cloud"] = new Color(0.22f, 0.25f, 0.35f);
+        return this;
+    }
+
+    /// <summary>Déšť (na sněhu sněžení): šedá obloha, mokrá lesklá silnice, méně světla.</summary>
+    public TrackTheme ApplyRain()
+    {
+        rain = true;
+        wetRoad = scenery != Scenery.Snow;
+        Color gray = new Color(0.5f, 0.54f, 0.6f);
+        if (!night)
+        {
+            sky = Color.Lerp(sky, gray, 0.75f);
+            skyTop = Color.Lerp(sky, new Color(0.35f, 0.38f, 0.45f), 0.6f);
+            skyBottom = sky * 0.8f;
+            ambientSky = Color.Lerp(ambientSky, gray, 0.6f);
+        }
+        fogStart *= 0.45f;
+        fogEnd *= 0.6f;
+        sunIntensity *= 0.55f;
+        colors["cloud"] = colors["cloud"] * 0.65f;
+        if (wetRoad)
+        {
+            colors["asphaltA"] = colors["asphaltA"] * 0.7f;
+            colors["asphaltB"] = colors["asphaltB"] * 0.7f;
+        }
+        cloudCount = Mathf.Max(cloudCount, 30);
+        return this;
+    }
+
+    public static TrackTheme City()
+    {
+        var t = Base()
+            .Set("asphaltA", 0x34363D).Set("asphaltB", 0x393B43)
+            .Set("curbA", 0xE6332A).Set("barrierA", 0xF2C21F).Set("barrierB", 0x8C8F96)
+            .Set("vergeA", 0x7A7D85).Set("vergeB", 0x73767E)
+            .Set("groundA", 0x5A5D64).Set("groundB", 0x60636B).Set("groundC", 0x4E8548)
+            .Set("high", 0x5A5D64).Set("peak", 0x5A5D64)
+            .Set("leafA", 0x2E7040).Set("leafB", 0x3D8547).Set("leafC", 0x255C38)
+            .Set("accentA", 0x6B7280).Set("accentB", 0x3B4252).Set("accentC", 0x8C6E5A)
+            .Set("seat", 0xD926A6).Set("flagA", 0x26D9D9).Set("flagB", 0xD926A6);
+        t.name = "City";
+        t.scenery = Scenery.City;
+        t.sky = C(0x8FA8C7);
+        t.sun = C(0xFFF0D1);
+        t.ambientSky = C(0xA3B3CC); t.ambientEquator = C(0x8C94A0); t.ambientGround = C(0x4D4F57);
+        t.hillAmplitude = 0f;
+        t.mountainHeight = 0f;
+        t.flatGround = true;
+        t.rockLine = 999f; t.snowLine = 999f;
+        t.treeCount = 90; t.rockCount = 0; t.cloudCount = 10;
+        t.forceNight = true;
+        return t;
     }
 
     public static TrackTheme Meadow()

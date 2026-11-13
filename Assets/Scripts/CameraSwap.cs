@@ -15,7 +15,7 @@ public class CameraSwap : MonoBehaviour
 
     void Update()
     {
-        if (Input.GetKeyDown(KeyCode.C) && !PauseMenu.GameIsPaused)
+        if (GameInput.Pressed(GameInput.Action.Camera) && !PauseMenu.GameIsPaused)
         {
             counter = (counter + 1) % 2;
             Apply();

@@ -17,7 +17,7 @@ public class Player : RacerBase
     {
         base.Update();
 
-        if (Input.GetKeyDown(KeyCode.R) && !PauseMenu.GameIsPaused)
+        if (GameInput.Pressed(GameInput.Action.Reset) && !PauseMenu.GameIsPaused)
             Respawn();
     }
 }
