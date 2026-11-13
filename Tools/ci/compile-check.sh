@@ -8,6 +8,8 @@ if [ ! -d "$WORK/pkg" ]; then
   mkdir -p "$WORK"
   curl -sSL -o "$WORK/m.nupkg" https://api.nuget.org/v3-flatcontainer/unityengine.modules/2021.3.33/unityengine.modules.2021.3.33.nupkg
   unzip -qo "$WORK/m.nupkg" -d "$WORK/pkg"
+  # Soubory z nupkg nemají práva - bez toho je běžný uživatel (CI runner) nepřečte
+  chmod -R u+rwX "$WORK/pkg"
 fi
 REFS=$(ls "$WORK"/pkg/lib/net45/*.dll | sed 's/^/-r:/' | tr '\n' ' ')
 mcs -warn:4 -target:library -out:"$WORK/CARS.dll" $REFS Tools/ci/UiStubs.cs $(find Assets/Scripts -name "*.cs")
