@@ -1,25 +1,19 @@
-using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.UI;
 
+/// <summary>Posuvník hlasitosti v nastavení. Hlasitost se ukládá a použije hned po spuštění.</summary>
 public class SoundController : MonoBehaviour
-
 {
+    private const string VolumeKey = "musicVolume";
+
     [SerializeField] Slider volumeSlider;
 
     void Start()
     {
-        if(!PlayerPrefs.HasKey("musicVolume")) {
-            PlayerPrefs.SetFloat("musicVolume", 0.5f);
-            Load();
-        } else
-        {
-            Load();
-        }
-
+        Load();
     }
-    public void ChangeVolume ()
+
+    public void ChangeVolume()
     {
         AudioListener.volume = volumeSlider.value;
         Save();
@@ -27,11 +21,22 @@ public class SoundController : MonoBehaviour
 
     private void Load()
     {
-        volumeSlider.value = PlayerPrefs.GetFloat("musicVolume");
+        float volume = PlayerPrefs.GetFloat(VolumeKey, 0.5f);
+        AudioListener.volume = volume;
+        if (volumeSlider != null)
+            volumeSlider.SetValueWithoutNotify(volume);
     }
 
     private void Save()
     {
-        PlayerPrefs.SetFloat("musicVolume", volumeSlider.value);
+        PlayerPrefs.SetFloat(VolumeKey, volumeSlider.value);
+        PlayerPrefs.Save();
+    }
+
+    // Hlasitost platí i při spuštění rovnou závodní scény (bez hlavního menu)
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+    private static void ApplySavedVolume()
+    {
+        AudioListener.volume = PlayerPrefs.GetFloat(VolumeKey, 0.5f);
     }
 }

@@ -1,8 +1,12 @@
 ﻿using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
+/// <summary>
+/// Závodní HUD: kolo, časy, rychloměr, pořadí, odpočet na startu a hlášky (nejlepší kolo).
+/// Rychloměr, pořadí a odpočet se vytváří za běhu a přebírají font z existujícího textu,
+/// takže ve scéně není potřeba nic přidávat.
+/// </summary>
 public class UIController : MonoBehaviour
 {
     public GameObject UIRacePanel;
@@ -16,53 +20,181 @@ public class UIController : MonoBehaviour
     public Player UpdateUIForPlayer;
     public AIPlayer UpdateUIForAIPlayer;
 
-    private int currentLap = -1;
-    private float currentTime;
-    private float lastLapTime;
-    private float bestLapTime;
-    private float bestAILapTime;
-
     public Leaderboard leaderboard;
 
-    void Update()
+    [Header("Start závodu")]
+    [Tooltip("Odpočet 3-2-1-GO před závodem.")]
+    public bool useCountdown = true;
+    public int countdownFrom = 3;
+
+    private int currentLap = -1;
+    private float currentTime = -1f;
+    private float lastLapTime = -1f;
+    private float bestLapTime = -1f;
+    private float bestAILapTime = -1f;
+
+    private Text speedText;
+    private Text positionText;
+    private Text centerText;
+    private float centerMessageUntil;
+
+    private void Start()
     {
-        if(UpdateUIForPlayer == null && UpdateUIForAIPlayer == null)
+        if (UpdateUIForPlayer != null)
+            UpdateUIForPlayer.LapCompleted += OnPlayerLapCompleted;
+
+        CreateRuntimeTexts();
+
+        if (useCountdown)
+            StartCoroutine(Countdown());
+    }
+
+    private void OnDestroy()
+    {
+        if (UpdateUIForPlayer != null)
+            UpdateUIForPlayer.LapCompleted -= OnPlayerLapCompleted;
+    }
+
+    private void OnPlayerLapCompleted(float lapTime)
+    {
+        bool isNewBest = lapTime <= UpdateUIForPlayer.BestLapTime;
+        if (leaderboard != null)
+            leaderboard.AddLeaderboardEntry(lapTime);
+
+        if (isNewBest && UpdateUIForPlayer.CurrentLap > 1)
+            ShowMessage($"NEW BEST LAP!\n{TimeFormat.Format(lapTime)}", 2.5f, new Color(1f, 0.85f, 0.2f));
+    }
+
+    private IEnumerator Countdown()
+    {
+        CarController[] cars = FindObjectsOfType<CarController>();
+        foreach (var car in cars) car.InputEnabled = false;
+
+        // Chvilka na načtení scény
+        yield return new WaitForSeconds(0.5f);
+
+        for (int i = countdownFrom; i > 0; i--)
         {
+            ShowMessage(i.ToString(), 1.1f, Color.white);
+            yield return new WaitForSeconds(1f);
+        }
+
+        foreach (var car in cars) car.InputEnabled = true;
+        ShowMessage("GO!", 1f, new Color(0.3f, 1f, 0.4f));
+    }
+
+    private void Update()
+    {
+        if (UpdateUIForPlayer != null)
+        {
+            if (UpdateUIForPlayer.CurrentLap != currentLap)
+            {
+                currentLap = UpdateUIForPlayer.CurrentLap;
+                SetText(UITextCurrentLap, $"Lap: {currentLap}");
+            }
+
+            if (UpdateUIForPlayer.CurrentLapTime != currentTime)
+            {
+                currentTime = UpdateUIForPlayer.CurrentLapTime;
+                SetText(UITextCurrentTime, $"Time: {TimeFormat.Format(currentTime)}");
+            }
+
+            if (UpdateUIForPlayer.LastLapTime != lastLapTime)
+            {
+                lastLapTime = UpdateUIForPlayer.LastLapTime;
+                SetText(UITextLastLap, lastLapTime > 0f ? $"Last: {TimeFormat.Format(lastLapTime)}" : "Last: NONE");
+            }
+
+            if (UpdateUIForPlayer.BestLapTime != bestLapTime)
+            {
+                bestLapTime = UpdateUIForPlayer.BestLapTime;
+                SetText(UITextBestLap, !float.IsInfinity(bestLapTime) ? $"Best: {TimeFormat.Format(bestLapTime)}" : "Best: NONE");
+            }
+
+            if (speedText != null && UpdateUIForPlayer.Controller != null)
+                speedText.text = $"{Mathf.RoundToInt(UpdateUIForPlayer.Controller.SpeedKmh)} km/h";
+        }
+
+        if (UpdateUIForAIPlayer != null)
+        {
+            if (UpdateUIForAIPlayer.BestLapTime != bestAILapTime)
+            {
+                bestAILapTime = UpdateUIForAIPlayer.BestLapTime;
+                SetText(UITextAIBestLap, !float.IsInfinity(bestAILapTime) ? $"CPU Best: {TimeFormat.Format(bestAILapTime)}" : "CPU Best: NONE");
+            }
+        }
+
+        if (positionText != null && UpdateUIForPlayer != null && UpdateUIForAIPlayer != null)
+        {
+            int position = UpdateUIForPlayer.RaceProgress >= UpdateUIForAIPlayer.RaceProgress ? 1 : 2;
+            positionText.text = $"P{position}/2";
+            positionText.color = position == 1 ? new Color(1f, 0.85f, 0.2f) : Color.white;
+        }
+
+        // Při pauze schovat překryvné texty, ať nepřekrývají menu
+        bool showOverlay = !PauseMenu.GameIsPaused;
+        if (speedText != null) speedText.enabled = showOverlay;
+        if (positionText != null) positionText.enabled = showOverlay;
+        if (centerText != null) centerText.enabled = showOverlay && Time.time < centerMessageUntil;
+    }
+
+    private void ShowMessage(string message, float duration, Color color)
+    {
+        if (centerText == null) return;
+        centerText.text = message;
+        centerText.color = color;
+        centerMessageUntil = Time.time + duration;
+    }
+
+    private static void SetText(Text text, string value)
+    {
+        if (text != null) text.text = value;
+    }
+
+    private void CreateRuntimeTexts()
+    {
+        Text template = UITextCurrentLap != null ? UITextCurrentLap : UITextCurrentTime;
+        if (template == null || template.canvas == null)
             return;
-        }
 
-        if(UpdateUIForPlayer.CurrentLap != currentLap)
-        {
-            currentLap = UpdateUIForPlayer.CurrentLap;
-            UITextCurrentLap.text = $"Lap: {currentLap}";
-        }
+        Transform canvas = template.canvas.transform;
 
-        if (UpdateUIForPlayer.CurrentLapTime != currentTime)
-        {
-            currentTime = UpdateUIForPlayer.CurrentLapTime;
-            UITextCurrentTime.text = $"Time: {(int)currentTime / 60}:{(currentTime) % 60:00.000}";
-        }
+        speedText = CreateText("SpeedText", canvas, template, 40, TextAnchor.LowerRight,
+            new Vector2(1f, 0f), new Vector2(-30f, 30f));
+        positionText = CreateText("PositionText", canvas, template, 40, TextAnchor.UpperRight,
+            new Vector2(1f, 1f), new Vector2(-30f, -30f));
+        centerText = CreateText("CenterMessage", canvas, template, 90, TextAnchor.MiddleCenter,
+            new Vector2(0.5f, 0.5f), new Vector2(0f, 80f));
+        centerText.enabled = false;
+    }
 
-        if (UpdateUIForPlayer.LastLapTime != lastLapTime)
-        {
-            lastLapTime = UpdateUIForPlayer.LastLapTime;        
-            UITextLastLap.text = $"Last: {(int)lastLapTime / 60}:{(lastLapTime) % 60:00.000}";
+    private static Text CreateText(string name, Transform parent, Text template, int size, TextAnchor alignment,
+        Vector2 anchor, Vector2 offset)
+    {
+        var go = new GameObject(name, typeof(RectTransform));
+        go.transform.SetParent(parent, false);
 
-            leaderboard.AddLeaderboardEntry(lastLapTime);
-        }
+        var rect = (RectTransform)go.transform;
+        rect.anchorMin = anchor;
+        rect.anchorMax = anchor;
+        rect.pivot = anchor;
+        rect.anchoredPosition = offset;
+        rect.sizeDelta = new Vector2(800f, 250f);
 
-        if (UpdateUIForPlayer.BestLapTime != bestLapTime)
-        {
-            bestLapTime = UpdateUIForPlayer.BestLapTime;
-            UITextBestLap.text = bestLapTime < 1000000 ? $"Best: {(int)bestLapTime / 60}:{(bestLapTime) % 60:00.000}" : "Best: NONE";
-        }
+        var text = go.AddComponent<Text>();
+        text.font = template.font;
+        text.fontStyle = FontStyle.Bold;
+        text.fontSize = size;
+        text.alignment = alignment;
+        text.color = Color.white;
+        text.horizontalOverflow = HorizontalWrapMode.Overflow;
+        text.verticalOverflow = VerticalWrapMode.Overflow;
+        text.raycastTarget = false;
 
-        if (UpdateUIForAIPlayer.BestLapTime != bestAILapTime)
-        {
-            bestAILapTime = UpdateUIForAIPlayer.BestLapTime;
-            UITextAIBestLap.text = bestAILapTime < 1000000 ? $"CPU Best: {(int)bestAILapTime / 60}:{(bestAILapTime) % 60:00.000}" : "CPU Best: NONE";
-        }
+        var outline = go.AddComponent<Outline>();
+        outline.effectColor = new Color(0f, 0f, 0f, 0.8f);
+        outline.effectDistance = new Vector2(2f, -2f);
 
-
+        return text;
     }
 }

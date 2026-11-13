@@ -1,68 +1,82 @@
+﻿using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.Audio;
-using System;
 
+/// <summary>
+/// Přehrává pojmenované zvuky (kliknutí, klakson...). Jedna instance přežívá mezi scénami.
+/// AudioManager v další scéně se nesmaže (tlačítka na něj mají odkaz), jen předá své zvuky
+/// hlavní instanci a volání Play/Stop přeposílá dál.
+/// </summary>
 public class AudioManager : MonoBehaviour
 {
     public Sound[] sounds;
 
     public static AudioManager instance;
 
+    private readonly Dictionary<string, Sound> lookup = new Dictionary<string, Sound>();
+
     void Awake()
     {
-        if (instance == null)
+        if (instance != null && instance != this)
         {
-            instance = this;
-        }
-        else
-        {
-            Destroy(gameObject);
+            // Zaregistrovat zvuky, které hlavní instance ještě nezná (např. zvuky motoru ze závodní scény)
+            if (sounds != null)
+            {
+                foreach (Sound s in sounds)
+                    instance.Register(s);
+            }
             return;
         }
+
+        instance = this;
         DontDestroyOnLoad(gameObject);
 
-        foreach (Sound s in sounds)
+        if (sounds != null)
         {
-            s.source = gameObject.AddComponent<AudioSource>();
-            s.source.clip = s.clip;
-
-            s.source.volume = s.volume;
-            s.source.pitch = s.pitch;
-            s.source.loop = s.loop;
+            foreach (Sound s in sounds)
+                Register(s);
         }
+    }
+
+    private void Register(Sound s)
+    {
+        if (s == null || string.IsNullOrEmpty(s.name) || lookup.ContainsKey(s.name))
+            return;
+
+        s.source = gameObject.AddComponent<AudioSource>();
+        s.source.clip = s.clip;
+        s.source.volume = s.volume;
+        s.source.pitch = s.pitch;
+        s.source.loop = s.loop;
+        s.source.playOnAwake = false;
+        // Zvuky menu musí hrát i při pauze
+        s.source.ignoreListenerPause = true;
+
+        lookup.Add(s.name, s);
+    }
+
+    private Sound Find(string name)
+    {
+        AudioManager target = instance != null ? instance : this;
+        if (target.lookup.TryGetValue(name, out Sound s))
+            return s;
+
+        Debug.LogWarning("Sound: " + name + " not found!");
+        return null;
     }
 
     public void Play(string name)
     {
-        Sound s = Array.Find(sounds, sound => sound.name == name);
-        if (s == null)
-        {
-            Debug.LogWarning("Sound: " + name + " not found!");
-            return;
-        }
-        Debug.LogWarning("Sound: " + s.source + " playing");
-        s.source.Play();
+        Find(name)?.source.Play();
     }
 
     public void Stop(string name)
     {
-        Sound s = Array.Find(sounds, sound => sound.name == name);
-        if (s == null)
-        {
-            Debug.LogWarning("Sound: " + name + " not found!");
-            return;
-        }
-        s.source.Stop();
+        Find(name)?.source.Stop();
     }
 
     public bool IsPlaying(string name)
     {
-        Sound s = Array.Find(sounds, sound => sound.name == name);
-        if (s == null)
-        {
-            Debug.LogWarning("Sound: " + name + " not found!");
-            return false;
-        }
-        return s.source.isPlaying;
+        Sound s = Find(name);
+        return s != null && s.source.isPlaying;
     }
 }

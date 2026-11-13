@@ -1,5 +1,6 @@
 ﻿using UnityEngine;
 
+/// <summary>Klávesa C přepíná mezi kamerou shora a kamerou za autem.</summary>
 public class CameraSwap : MonoBehaviour
 {
     public Camera cameraOne;
@@ -7,45 +8,25 @@ public class CameraSwap : MonoBehaviour
 
     public int counter;
 
-
     void Start()
     {
-        ShowCameraOne();
+        Apply();
     }
 
     void Update()
     {
-        if (Input.GetKeyDown(KeyCode.C))
+        if (Input.GetKeyDown(KeyCode.C) && !PauseMenu.GameIsPaused)
         {
-            counter++;
-            if (counter > 1)
-            {
-                counter = 0;
-            }
-        
-        }
-
-        if (counter==0)
-        {
-            ShowCameraTwo();
-        }
-        else if (counter==1)
-        {
-            ShowCameraOne();
+            counter = (counter + 1) % 2;
+            Apply();
         }
     }
 
-    public void ShowCameraOne()
+    // counter 0 = kamera jedna, 1 = kamera dvě (stejné chování jako původně)
+    private void Apply()
     {
-        cameraOne.enabled = false;
-        cameraTwo.enabled = true;
-    }
-
-    public void ShowCameraTwo()
-    {
-        cameraOne.enabled = true;
-        cameraTwo.enabled = false;
+        bool first = counter == 0;
+        if (cameraOne != null) cameraOne.enabled = first;
+        if (cameraTwo != null) cameraTwo.enabled = !first;
     }
 }
-
-

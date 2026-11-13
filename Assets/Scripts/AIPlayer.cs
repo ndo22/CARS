@@ -1,112 +1,159 @@
-using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
+﻿using UnityEngine;
 
-public class AIPlayer : MonoBehaviour
+/// <summary>
+/// Počítačový soupeř. Jede po checkpointech, před zatáčkami brzdí podle jejich ostrosti,
+/// a když se zasekne nebo převrátí, nejdřív zkusí vycouvat a pak se vrátí na trať.
+/// </summary>
+public class AIPlayer : RacerBase
 {
+    [Header("Rychlost")]
+    [Tooltip("Rychlost na rovince v km/h.")]
+    public float straightSpeedKmh = 150f;
+    [Tooltip("Rychlost v ostré (90°) zatáčce v km/h.")]
+    public float cornerSpeedKmh = 55f;
+    [Tooltip("Od jaké vzdálenosti před checkpointem začne AI zpomalovat na rychlost zatáčky (m).")]
+    public float brakingDistance = 40f;
 
-    public float BestLapTime { get; private set; } = Mathf.Infinity;
-    public float LastLapTime { get; private set; } = 0;
-    public float CurrentLapTime { get; private set; } = 0;
-    public int CurrentLap { get; private set; } = 0;
+    [Header("Řízení")]
+    [Tooltip("Jak daleko před checkpointem se AI začne natáčet k dalšímu (m). Vyhlazuje průjezd zatáčkou.")]
+    public float lookAheadDistance = 15f;
+    [Tooltip("Obtížnost - násobí cílovou rychlost (0.7 = lehká, 1 = normální, 1.15 = těžká).")]
+    [Range(0.5f, 1.3f)] public float skill = 1f;
 
-    private float lapTimer;
-    private int lastCheckpointPassed = 0;
-    private int nextCheckpoint = 1;
-
-    private Transform checkpointsParent;
-    private int checkpointCount;
-    private int checkpointLayer;
+    [Header("Zaseknutí")]
+    public float stuckTime = 1.5f;
+    public float reverseTime = 1.2f;
+    [Tooltip("Kolikrát zkusí vycouvat, než se vrátí na trať.")]
+    public int maxReverseAttempts = 3;
 
     public AICar carController { get; private set; }
 
-    private float currentAngle;
-    private float gasInput;
+    private float stuckTimer;
+    private float reverseTimer;
+    private float flippedTimer;
+    private int stuckAttempts;
 
-    private bool isBraking = false;
-
-    void Update()
+    protected override void Awake()
     {
-        Vector3 dirToMove = (checkpointsParent.GetChild(nextCheckpoint).position - this.transform.position).normalized;
-
-        float forwardAmount = 0f;
-        float steerAmout = 0f;
-
-        float dot = Vector3.Dot(transform.forward, dirToMove);
-
-        if (dot > 0)
-            forwardAmount = 1f;
-        else 
-            forwardAmount = -1f;
-
-        float angleToDir = Vector3.SignedAngle(transform.forward, dirToMove, Vector3.up);
-
-        if (angleToDir  > 0)
-            steerAmout = 1f;
-        else
-            steerAmout = -1f;
- 
-        if (isBraking)
-            forwardAmount *= -1;
-
-        carController.SpeedInput = forwardAmount * 300;
-        carController.SteerInput = steerAmout * 10;
-    }
-
-
-
-    void Awake()
-    {
-        checkpointsParent = GameObject.Find("Checkpoints").transform;
-        checkpointCount = checkpointsParent.childCount;
-        checkpointLayer = LayerMask.NameToLayer("Checkpoint");
+        base.Awake();
         carController = GetComponent<AICar>();
     }
 
-    void StartLap()
+    protected override void Update()
     {
-        Debug.Log("Started Lap");
-        CurrentLap++;
-        lastCheckpointPassed = 1;
-        nextCheckpoint = lastCheckpointPassed + 1;
-        lapTimer = Time.time;
-    }
-
-    void EndLap()
-    {
-        LastLapTime = Time.time - lapTimer;
-        BestLapTime = Mathf.Min(LastLapTime, BestLapTime);
-        Debug.Log("Ended Lap - LapTime was " + LastLapTime + "s");
-    }
-
-    private void OnTriggerEnter(Collider collider)
-    {
-        if (collider.gameObject.layer != checkpointLayer)
+        base.Update();
+        if (carController == null || CheckpointCount == 0)
             return;
 
-        if (collider.gameObject.name == "1")
-        {
-            if (lastCheckpointPassed == checkpointCount)
-            {
-                EndLap();
-                isBraking = true;
-            }
+        Transform target = checkpoints[NextCheckpointIndex];
+        Transform after = checkpoints[(NextCheckpointIndex + 1) % CheckpointCount];
 
-            if (CurrentLap == 0 || lastCheckpointPassed == checkpointCount)
-            {
-                StartLap();
-            }
+        Vector3 position = transform.position;
+        Vector3 toTarget = Flat(target.position - position);
+        float distance = toTarget.magnitude;
+
+        // Blízko checkpointu už míříme k dalšímu, ať AI neprojíždí zatáčky ostře "do špičky"
+        float blend = Mathf.Clamp01(1f - distance / Mathf.Max(0.1f, lookAheadDistance));
+        Vector3 aimPoint = Vector3.Lerp(target.position, after.position, blend * 0.5f);
+
+        Vector3 local = transform.InverseTransformPoint(aimPoint);
+        float angleToAim = Mathf.Atan2(local.x, local.z) * Mathf.Rad2Deg;
+        float steer = Mathf.Clamp(angleToAim / Mathf.Max(1f, carController.maxSteer), -1f, 1f);
+
+        // Jak ostrá je zatáčka na příštím checkpointu
+        float cornerAngle = Vector3.Angle(toTarget, Flat(after.position - target.position));
+        float cornerSpeed = Mathf.Lerp(straightSpeedKmh, cornerSpeedKmh, Mathf.Clamp01(cornerAngle / 90f));
+        float approach = Mathf.Clamp01(1f - distance / Mathf.Max(1f, brakingDistance));
+        float desiredSpeed = Mathf.Lerp(straightSpeedKmh, cornerSpeed, approach);
+        // Když auto zrovna hodně zatáčí, ubrat
+        desiredSpeed *= Mathf.Lerp(1f, 0.6f, Mathf.Clamp01(Mathf.Abs(angleToAim) / 60f));
+        desiredSpeed *= skill;
+
+        float speed = carController.ForwardSpeedKmh;
+        float throttle;
+        float brake = 0f;
+
+        if (speed < desiredSpeed)
+            throttle = 1f;
+        else if (speed > desiredSpeed + 8f)
+        {
+            throttle = 0f;
+            brake = Mathf.Clamp01((speed - desiredSpeed) / 30f);
+        }
+        else
+            throttle = 0.2f;
+
+        // Checkpoint za zády (např. po odražení) - otočit se
+        if (local.z < 0f && distance < 30f)
+        {
+            throttle = 0.6f;
+            steer = Mathf.Sign(angleToAim);
+        }
+
+        HandleStuck(ref throttle, ref steer, ref brake);
+
+        carController.Throttle = throttle;
+        carController.Steer = steer;
+        carController.Brake = brake;
+    }
+
+    private void HandleStuck(ref float throttle, ref float steer, ref float brake)
+    {
+        if (!carController.InputEnabled || PauseMenu.GameIsPaused)
+        {
+            stuckTimer = 0f;
+            reverseTimer = 0f;
             return;
         }
 
-        if (collider.gameObject.name == (lastCheckpointPassed + 1).ToString())
+        // Převrácené auto
+        if (Vector3.Dot(transform.up, Vector3.up) < 0.3f)
+            flippedTimer += Time.deltaTime;
+        else
+            flippedTimer = 0f;
+
+        if (flippedTimer > 2f)
         {
-            isBraking = false;
-            lastCheckpointPassed++;
-            if (lastCheckpointPassed == 15)
-                nextCheckpoint = 1;
+            flippedTimer = 0f;
+            stuckTimer = 0f;
+            Respawn();
+            return;
+        }
+
+        if (reverseTimer > 0f)
+        {
+            reverseTimer -= Time.deltaTime;
+            throttle = -1f;
+            steer = -steer;
+            brake = 0f;
+            return;
+        }
+
+        if (throttle > 0.5f && carController.SpeedKmh < 3f)
+            stuckTimer += Time.deltaTime;
+        else if (carController.SpeedKmh > 10f)
+        {
+            stuckTimer = 0f;
+            stuckAttempts = 0;
+        }
+
+        if (stuckTimer > stuckTime)
+        {
+            stuckTimer = 0f;
+            stuckAttempts++;
+            if (stuckAttempts > maxReverseAttempts)
+            {
+                stuckAttempts = 0;
+                Respawn();
+            }
             else
-                nextCheckpoint = lastCheckpointPassed + 1;
+                reverseTimer = reverseTime;
         }
+    }
+
+    private static Vector3 Flat(Vector3 v)
+    {
+        v.y = 0f;
+        return v;
     }
 }

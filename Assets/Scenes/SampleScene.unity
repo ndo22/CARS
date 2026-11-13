@@ -19023,8 +19023,8 @@ MonoBehaviour:
   RightFront: {fileID: 47728772}
   LeftBack: {fileID: 1474387676}
   RightBack: {fileID: 137889811}
-  motorTorque: 150
-  maxSteer: 15
+  motorTorque: 300
+  maxSteer: 25
 --- !u!1 &667624281
 GameObject:
   m_ObjectHideFlags: 0

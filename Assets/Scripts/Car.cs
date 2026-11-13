@@ -1,63 +1,30 @@
 ﻿using UnityEngine;
 
-public class Car : MonoBehaviour
+/// <summary>
+/// Auto ovládané hráčem.
+/// W/S nebo šipky = plyn / brzda (při stání couvání), A/D = zatáčení, mezerník = ruční brzda.
+/// </summary>
+public class Car : CarController
 {
-    private Rigidbody _rigidbody;
-
-    public Transform centerOfMass;
-
-    public WheelCollider wheelColliderLeftFront;
-    public WheelCollider wheelColliderRightFront;
-    public WheelCollider wheelColliderLeftBack;
-    public WheelCollider wheelColliderRightBack;
-
-    public Transform LeftFront;
-    public Transform RightFront;
-    public Transform LeftBack;
-    public Transform RightBack;
-
-    public float motorTorque = 150f;
-    public float maxSteer = 15f;
-    public float minSpeedForEngineSound = 1f;
-
-    private void Start()
+    protected override void Update()
     {
-        _rigidbody = GetComponent<Rigidbody>();
-        _rigidbody.centerOfMass = centerOfMass.localPosition;
-    }
+        base.Update();
 
-    void FixedUpdate()
-    {
-        float movementInput = Input.GetAxis("Vertical");
+        float vertical = Input.GetAxis("Vertical");
+        float forwardSpeed = ForwardSpeedKmh;
 
-        wheelColliderLeftBack.motorTorque = movementInput * motorTorque;
-        wheelColliderRightBack.motorTorque = movementInput * motorTorque;
-        wheelColliderLeftFront.steerAngle = Input.GetAxis("Horizontal") * maxSteer;
-        wheelColliderRightFront.steerAngle = Input.GetAxis("Horizontal") * maxSteer;
+        throttleInput = 0f;
+        brakeInput = 0f;
 
-        float currentSpeed = _rigidbody.velocity.magnitude;
-        float pitchFromCar = _rigidbody.velocity.magnitude / 60f;
-    }
+        // Šipka dolů za jízdy vpřed brzdí, teprve po zastavení couvá (a naopak)
+        if (vertical < 0f && forwardSpeed > 3f)
+            brakeInput = -vertical;
+        else if (vertical > 0f && forwardSpeed < -3f)
+            brakeInput = vertical;
+        else
+            throttleInput = vertical;
 
-    void Update()
-    {
-        var pos = Vector3.zero;
-        var rot = Quaternion.identity;
-
-        wheelColliderLeftFront.GetWorldPose(out pos, out rot);
-        LeftFront.position = pos;
-        LeftFront.rotation = rot;
-
-        wheelColliderRightFront.GetWorldPose(out pos, out rot);
-        RightFront.position = pos;
-        RightFront.rotation = rot * Quaternion.Euler(0, 180, 0);
-
-        wheelColliderLeftBack.GetWorldPose(out pos, out rot);
-        LeftBack.position = pos;
-        LeftBack.rotation = rot;
-
-        wheelColliderRightBack.GetWorldPose(out pos, out rot);
-        RightBack.position = pos;
-        RightBack.rotation = rot * Quaternion.Euler(0, 180, 0);
+        steerInput = Input.GetAxis("Horizontal");
+        handbrakeInput = Input.GetKey(KeyCode.Space);
     }
 }

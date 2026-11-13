@@ -1,28 +1,33 @@
-using System.Collections;
+﻿using System;
 using System.Collections.Generic;
-using UnityEngine;
-using TMPro;
 using System.Linq;
+using TMPro;
+using UnityEngine;
 
+/// <summary>
+/// Tabulka nejlepších časů kol uložená v PlayerPrefs. Zobrazuje se v pauzovacím menu.
+/// </summary>
 public class Leaderboard : MonoBehaviour
 {
+    private const string LeaderboardKey = "leaderboardTable";
+    private const int ShownEntries = 5;
+    private const int StoredEntries = 20;
+    private const float TemplateHeight = 30f;
+
     private Transform topTimesPanel;
     private Transform leaderboardTemplate;
-    private List<Transform> leaderboardEntryTransformList;
-
-    private const string leaderboardKey = "leaderboardTable";
+    private readonly List<Transform> entryTransforms = new List<Transform>();
 
     private void Awake()
     {
         topTimesPanel = transform.Find("TopTimesPanel");
-        leaderboardTemplate = topTimesPanel.Find("LeaderboardTemplate");
-
         if (topTimesPanel == null)
         {
             Debug.LogError("TopTimesPanel not found!");
             return;
         }
 
+        leaderboardTemplate = topTimesPanel.Find("LeaderboardTemplate");
         if (leaderboardTemplate == null)
         {
             Debug.LogError("LeaderboardTemplate not found!");
@@ -30,75 +35,119 @@ public class Leaderboard : MonoBehaviour
         }
 
         leaderboardTemplate.gameObject.SetActive(false);
-
-        string jsonString = PlayerPrefs.GetString(leaderboardKey);
-        LeaderboardList leaderboardList = JsonUtility.FromJson<LeaderboardList>(jsonString);
-
-        leaderboardList.leaderboardEntryList = leaderboardList.leaderboardEntryList.OrderBy(entry => entry.time).ToList();
-
-        leaderboardEntryTransformList = new List<Transform>();
-
-        foreach (LeaderboardEntry leaderboardEntry in leaderboardList.leaderboardEntryList.Take(5))
-        {
-            CreateLeaderboardEntryTransform(leaderboardEntry, topTimesPanel, leaderboardEntryTransformList);
-        }
     }
 
-    private void CreateLeaderboardEntryTransform(LeaderboardEntry leaderboardEntry, Transform container, List<Transform> transformList)
+    private void OnEnable()
     {
-        float templateHeight = 30f;
-        Transform entryTransform = Instantiate(leaderboardTemplate, container);
-        RectTransform entryRectTransform = entryTransform.GetComponent<RectTransform>();
-        entryRectTransform.anchoredPosition = new Vector2(0, -templateHeight * transformList.Count);
-        entryRectTransform.gameObject.SetActive(true);
+        Refresh();
+    }
 
-        string rankString = transformList.Count + 1 + ".";
+    /// <summary>Znovu vykreslí tabulku (staré řádky smaže, takže se nic nezdvojí).</summary>
+    public void Refresh()
+    {
+        if (topTimesPanel == null || leaderboardTemplate == null)
+            return;
 
-        entryTransform.Find("PositionText").GetComponent<TextMeshProUGUI>().text = rankString;
+        foreach (Transform t in entryTransforms)
+        {
+            if (t != null) Destroy(t.gameObject);
+        }
+        entryTransforms.Clear();
 
-        entryTransform.Find("TimeText").GetComponent<TextMeshProUGUI>().text = leaderboardEntry.time;
+        foreach (LeaderboardEntry entry in Load().entries.Take(ShownEntries))
+            CreateEntryTransform(entry);
+    }
 
-        transformList.Add(entryTransform);
+    private void CreateEntryTransform(LeaderboardEntry entry)
+    {
+        Transform entryTransform = Instantiate(leaderboardTemplate, topTimesPanel);
+        RectTransform rect = entryTransform.GetComponent<RectTransform>();
+        rect.anchoredPosition = new Vector2(0, -TemplateHeight * entryTransforms.Count);
+        entryTransform.gameObject.SetActive(true);
+
+        SetText(entryTransform, "PositionText", $"{entryTransforms.Count + 1}.");
+        SetText(entryTransform, "TimeText", TimeFormat.Format(entry.seconds));
+
+        entryTransforms.Add(entryTransform);
+    }
+
+    private static void SetText(Transform parent, string childName, string value)
+    {
+        Transform child = parent.Find(childName);
+        if (child == null) return;
+        var text = child.GetComponent<TextMeshProUGUI>();
+        if (text != null) text.text = value;
     }
 
     public void AddLeaderboardEntry(float time)
     {
-        string jsonString = PlayerPrefs.GetString(leaderboardKey);
-        LeaderboardList leaderboardList = JsonUtility.FromJson<LeaderboardList>(jsonString);
+        if (time <= 0f || float.IsInfinity(time))
+            return;
 
-        if (leaderboardList == null)
+        LeaderboardList list = Load();
+        list.entries.Add(new LeaderboardEntry { seconds = time, time = TimeFormat.Format(time) });
+        Save(list);
+
+        if (isActiveAndEnabled)
+            Refresh();
+    }
+
+    /// <summary>Smaže všechny uložené časy. Dá se napojit na tlačítko v inspektoru.</summary>
+    public void ResetLeaderboard()
+    {
+        PlayerPrefs.DeleteKey(LeaderboardKey);
+        PlayerPrefs.Save();
+        Refresh();
+    }
+
+    private static LeaderboardList Load()
+    {
+        LeaderboardList list = null;
+        string json = PlayerPrefs.GetString(LeaderboardKey, string.Empty);
+        if (!string.IsNullOrEmpty(json))
         {
-            leaderboardList = new LeaderboardList();
-            leaderboardList.leaderboardEntryList = new List<LeaderboardEntry>();
-            Debug.Log("new leadeboard list created");
+            try { list = JsonUtility.FromJson<LeaderboardList>(json); }
+            catch (Exception e) { Debug.LogWarning("Leaderboard data are corrupted, starting fresh: " + e.Message); }
         }
 
-        LeaderboardEntry leaderboardEntry = new LeaderboardEntry { time = $"{(int)time/ 60}:{(time) % 60:00.000}" };
+        if (list == null) list = new LeaderboardList();
+        if (list.entries == null) list.entries = new List<LeaderboardEntry>();
 
-        leaderboardList.leaderboardEntryList.Add(leaderboardEntry);
+        // Převod ze staré verze uložení, kde byl čas jen jako text
+        if (list.leaderboardEntryList != null && list.leaderboardEntryList.Count > 0)
+        {
+            list.entries.AddRange(list.leaderboardEntryList);
+            list.leaderboardEntryList = null;
+        }
+        foreach (var e in list.entries)
+        {
+            if (e.seconds <= 0f && TimeFormat.TryParse(e.time, out float parsed))
+                e.seconds = parsed;
+        }
 
-        string json = JsonUtility.ToJson(leaderboardList);
-        PlayerPrefs.SetString(leaderboardKey, json);
-        PlayerPrefs.Save();
-
-        Awake();
+        list.entries = list.entries.Where(e => e.seconds > 0f).OrderBy(e => e.seconds).ToList();
+        return list;
     }
 
-    private void ResetLeaderboard()
+    private static void Save(LeaderboardList list)
     {
-        PlayerPrefs.DeleteKey(leaderboardKey);
+        list.entries = list.entries.OrderBy(e => e.seconds).Take(StoredEntries).ToList();
+        PlayerPrefs.SetString(LeaderboardKey, JsonUtility.ToJson(list));
         PlayerPrefs.Save();
-        Debug.Log("Leaderboard reset!");
     }
 
+    [Serializable]
     private class LeaderboardList
     {
+        public List<LeaderboardEntry> entries;
+        // Pouze kvůli načtení starých uložených dat
         public List<LeaderboardEntry> leaderboardEntryList;
     }
 
-    [System.Serializable]
+    [Serializable]
     private class LeaderboardEntry
     {
+        public float seconds;
         public string time;
     }
 }
