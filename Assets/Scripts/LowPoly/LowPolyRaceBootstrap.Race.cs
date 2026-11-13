@@ -4,47 +4,58 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-/// <summary>Závod: auta, kamery, HUD, pauza, cíl, výsledky a šampionát.</summary>
+/// <summary>Závod: auta, kamery (i split-screen), HUD, pauza, cíl, výsledky, replay a šampionát.</summary>
 public partial class LowPolyRaceBootstrap
 {
-    private Player player;
+    /// <summary>HUD jednoho hráče (ve split-screenu má každý svůj).</summary>
+    private class PlayerHud
+    {
+        public Player player;
+        public UIController ui;
+        public RectTransform nitroFill;
+        public Text drift;
+    }
+
+    private readonly List<Player> humans = new List<Player>();
+    private readonly List<PlayerHud> huds = new List<PlayerHud>();
+    private Player player; // hráč 1
     private readonly List<AIPlayer> opponents = new List<AIPlayer>();
-    private UIController hud;
+    private UIController hud;  // HUD hráče 1
     private PauseMenu pauseMenu;
-    private Canvas raceCanvas;
+    private Canvas raceCanvas; // překryv přes celou obrazovku (pauza, výsledky)
     private bool racing;
-    private bool playerFinished;
-    private float playerRaceTime;
+    private bool resultsShown;
     private float recordBefore;
     private readonly List<RacerBase> finishOrder = new List<RacerBase>();
     private readonly Dictionary<RacerBase, float> finishTimes = new Dictionary<RacerBase, float>();
     private readonly Dictionary<RacerBase, float> raceTimes = new Dictionary<RacerBase, float>();
-    private float raceStartTime = -1f;
-
-    // HUD navíc
-    private RectTransform nitroFill;
-    private Text driftText;
     private GhostPlayer ghost;
+    private bool ghostBeaten;
+    private ReplaySystem replay;
+
+    private bool SplitScreen => RaceSetup.Players == 2;
 
     // ================================================================ start
 
     private void StartRace()
     {
         racing = true;
-        PlayMusic(ProceduralAudio.RaceMusic());
+        PlayMusic(ProceduralAudio.RaceMusic);
         SkidMarks.Create(Mat("skid", new Color(0.09f, 0.09f, 0.1f), 0.05f));
         ParticleFX.Create(
             Mat("smoke", new Color(0.85f, 0.85f, 0.88f), 0.05f),
             Mat("dust", theme["vergeA"] * 1.1f, 0.02f),
             Mat("spark", new Color(1f, 0.6f, 0.2f), 0.3f, new Color(1f, 0.6f, 0.2f) * 3f),
             Mat("splash", new Color(0.75f, 0.82f, 0.9f), 0.6f));
+        replay = new GameObject("Replay").AddComponent<ReplaySystem>();
+        replay.SetTvSpots(TvSpots());
 
         int opponentCount = RaceSetup.Opponents;
         float baseSkill = RaceSetup.DifficultySkill[Mathf.Clamp(RaceSetup.difficulty, 0, 2)];
-        var usedColors = new List<int> { RaceSetup.colorIndex };
+        var usedColors = new List<int> { RaceSetup.colorIndex, SplitScreen ? RaceSetup.carColor2 : -1 };
         float grip = theme.rain ? (theme.scenery == TrackTheme.Scenery.Snow ? 0.72f : 0.78f) : 1f;
 
-        // Soupeři startují vepředu, hráč z poslední pozice
+        // Soupeři startují vepředu, hráči z posledních pozic
         for (int i = 0; i < opponentCount; i++)
         {
             GridSlot(i, out Vector3 pos, out Quaternion rot);
@@ -54,26 +65,69 @@ public partial class LowPolyRaceBootstrap
             ai.DisplayName = Championship.AiNames[i % Championship.AiNames.Length];
             ai.Controller.gripMultiplier = grip;
             opponents.Add(ai);
+            replay.Add(ai.Controller, ai.DisplayName);
         }
-        GridSlot(opponentCount, out Vector3 playerPos, out Quaternion playerRot);
-        player = CreatePlayer(playerPos, playerRot);
-        player.DisplayName = "YOU";
-        player.Controller.gripMultiplier = grip;
 
-        CreateCameras(player.Controller);
-        CreateHud();
+        for (int h = 0; h < RaceSetup.Players; h++)
+        {
+            GridSlot(opponentCount + h, out Vector3 pos, out Quaternion rot);
+            Player p = h == 0
+                ? CreatePlayer(pos, rot, RaceSetup.carStyle, PlayerPalette(), RaceSetup.number, SplitScreen ? 0 : -1)
+                : CreatePlayer(pos, rot, RaceSetup.carStyle2, CarPalette(CarColors[RaceSetup.carColor2]), RaceSetup.number % 99 + 1, 1);
+            p.DisplayName = SplitScreen ? "P" + (h + 1) : "YOU";
+            p.Controller.gripMultiplier = grip;
+            humans.Add(p);
+            replay.Add(p.Controller, p.DisplayName);
+        }
+        player = humans[0];
+
+        raceCanvas = LowPolyUI.CreateCanvas("RaceCanvas", 10);
+        for (int h = 0; h < humans.Count; h++)
+        {
+            Camera cam = CreateCameras(humans[h].Controller, h);
+            Canvas canvas = SplitScreen ? LowPolyUI.CreateCanvas("HudP" + (h + 1), cam) : raceCanvas;
+            huds.Add(CreatePlayerHud(humans[h], canvas, h == 0));
+        }
+        hud = huds[0].ui;
+        CreatePauseMenu();
 
         if (RaceSetup.mode == RaceSetup.Mode.TimeTrial)
             SetupGhost();
+        if (Dynamic)
+            SetupDynamicConditions();
+        if (!SplitScreen)
+        {
+            if (GameSettings.UseTouch) TouchControls.Create(raceCanvas.transform);
+            if (!GameSettings.TutorialDone) SetupTutorial();
+            SetupAchievements();
+        }
 
         recordBefore = Leaderboard.BestTime(definition.LeaderboardKey);
-        player.LapStarted += () => { if (raceStartTime < 0f) raceStartTime = Time.time; };
-        player.LapCompleted += OnPlayerLap;
+        foreach (var hp in humans)
+        {
+            Player captured = hp;
+            hp.LapCompleted += t => OnHumanLap(captured, t);
+        }
         foreach (var ai in opponents)
         {
             AIPlayer captured = ai;
             ai.LapCompleted += t => OnOpponentLap(captured, t);
         }
+        if (definition.id.StartsWith("custom_") == false)
+        {
+            var ids = new List<string>();
+            foreach (var d in TrackLibrary.All) ids.Add(d.id);
+            Achievements.TrackVisited(definition.id, ids);
+        }
+    }
+
+    private Vector3[] TvSpots()
+    {
+        var spots = new List<Vector3>();
+        float offset = settings.roadWidth * 0.5f + settings.barrierOffset + 7f;
+        for (int i = 0, k = 0; i < track.centers.Length; i += 28, k++)
+            spots.Add(track.Center(i) + track.Right(i) * (k % 2 == 0 ? offset : -offset) + Vector3.up * 6f);
+        return spots.ToArray();
     }
 
     private static int NextColor(List<int> used)
@@ -91,24 +145,31 @@ public partial class LowPolyRaceBootstrap
 
     private int CarLayer => Mathf.Max(0, LayerMask.NameToLayer("Car2"));
 
-    private Player CreatePlayer(Vector3 position, Quaternion rotation)
+    private bool Headlights => theme.night || RaceSetup.dynamicTime;
+
+    private Player CreatePlayer(Vector3 position, Quaternion rotation, LowPolyCarFactory.BodyStyle style, LowPolyCarFactory.Palette palette, int number, int playerIndex)
     {
         // Vrstva Car2 - auta na ní do sebe narážejí (původní trať používá Car/Car2, které spolu nekolidují)
-        GameObject go = LowPolyCarFactory.Build("PlayerCar", position, rotation, RaceSetup.carStyle,
-            CarPalette(CarColors[RaceSetup.colorIndex], RaceSetup.colorIndex == 9), CarLayer, out Car car,
-            new LowPolyCarFactory.Options { number = 1, headlights = theme.night, headlightIntensity = 2.6f });
+        GameObject go = LowPolyCarFactory.Build("PlayerCar", position, rotation, style, palette, CarLayer, out Car car,
+            new LowPolyCarFactory.Options { number = number, pattern = playerIndex <= 0 ? RaceSetup.pattern : 0, headlights = Headlights, headlightIntensity = 2.6f });
+        car.playerIndex = playerIndex;
         Player p = go.AddComponent<Player>();
-        var fx = go.AddComponent<CarEffects>();
-        fx.rain = theme.rain;
-        AddEngineSound(go, 0.6f, false);
+        if (GameSettings.SteerAssist > 0 || GameSettings.BrakeAssist)
+        {
+            var assist = go.AddComponent<DrivingAssist>();
+            assist.steering = GameSettings.SteerAssist == 2 ? 0.65f : GameSettings.SteerAssist == 1 ? 0.35f : 0f;
+            assist.braking = GameSettings.BrakeAssist;
+        }
+        AddCarExtras(go, palette, false);
         go.SetActive(true);
         return p;
     }
 
     private AIPlayer CreateAI(Vector3 position, Quaternion rotation, LowPolyCarFactory.BodyStyle style, Color color, float skill, int number)
     {
-        GameObject go = LowPolyCarFactory.Build("AICar", position, rotation, style, CarPalette(color), CarLayer, out AICar car,
-            new LowPolyCarFactory.Options { number = number, headlights = theme.night, headlightIntensity = 1.6f });
+        LowPolyCarFactory.Palette palette = CarPalette(color);
+        GameObject go = LowPolyCarFactory.Build("AICar", position, rotation, style, palette, CarLayer, out AICar car,
+            new LowPolyCarFactory.Options { number = number, headlights = Headlights, headlightIntensity = 1.6f });
         AIPlayer ai = go.AddComponent<AIPlayer>();
         // Checkpointy jsou husté (~24 m), proto AI sleduje zatáčky víc dopředu
         float wet = theme.rain ? 0.88f : 1f;
@@ -119,13 +180,24 @@ public partial class LowPolyRaceBootstrap
         ai.brakingSlope = 1.3f * wet;
         ai.lookAheadDistance = 12f;
         ai.skill = skill;
-        var fx = go.AddComponent<CarEffects>();
-        fx.spatialAudio = true;
-        fx.volume = 0.6f;
-        fx.rain = theme.rain;
-        AddEngineSound(go, 0.35f, true);
+        AddCarExtras(go, palette, true);
         go.SetActive(true);
         return ai;
+    }
+
+    private void AddCarExtras(GameObject go, LowPolyCarFactory.Palette palette, bool ai)
+    {
+        var fx = go.AddComponent<CarEffects>();
+        fx.rain = theme.rain;
+        fx.spatialAudio = ai || SplitScreen;
+        fx.volume = ai ? 0.6f : 1f;
+        if (GameSettings.Damage > 0)
+        {
+            var damage = go.AddComponent<CarDamage>();
+            damage.level = GameSettings.Damage;
+            damage.debrisMaterial = palette.paint;
+        }
+        AddEngineSound(go, ai ? 0.35f : 0.6f, ai || SplitScreen);
     }
 
     private void AddEngineSound(GameObject car, float volume, bool spatial)
@@ -155,6 +227,16 @@ public partial class LowPolyRaceBootstrap
         recorder.style = (int)RaceSetup.carStyle;
 
         GhostData.Lap saved = GhostData.Load(definition.id);
+        recorder.NewBest += lap =>
+        {
+            if (saved != null && !ghostBeaten)
+            {
+                ghostBeaten = true;
+                Achievements.Unlock("ghostbuster");
+            }
+            if (ghost != null) ghost.lap = lap;
+            hud.ShowMessage("NEW GHOST!", 1.6f, new Color(0.5f, 0.9f, 1f));
+        };
         if (!GameSettings.ShowGhost) return;
 
         var ghostStyle = saved != null ? (LowPolyCarFactory.BodyStyle)Mathf.Clamp(saved.style, 0, 5) : RaceSetup.carStyle;
@@ -171,19 +253,56 @@ public partial class LowPolyRaceBootstrap
             ghost.gameObject.SetActive(true);
             ghost.Restart();
         };
-        recorder.NewBest += lap =>
-        {
-            ghost.lap = lap;
-            hud.ShowMessage("NEW GHOST!", 1.6f, new Color(0.5f, 0.9f, 1f));
-        };
     }
 
-    private void CreateCameras(CarController target)
+    private void SetupDynamicConditions()
     {
-        var chase = new GameObject("ChaseCamera");
-        chase.tag = "MainCamera";
+        var dc = new GameObject("DynamicConditions").AddComponent<DynamicConditions>();
+        dc.start = theme;
+        dc.end = endTheme;
+        dc.changeTime = RaceSetup.dynamicTime;
+        dc.changeWeather = RaceSetup.dynamicWeather;
+        dc.sun = sun;
+        dc.skyMaterial = RenderSettings.skybox;
+        dc.leader = player;
+        dc.totalLaps = RaceSetup.laps;
+        dc.weather = weather;
+        dc.snow = theme.scenery == TrackTheme.Scenery.Snow;
+        dc.rainMaterial = Mat("precip", dc.snow ? Color.white : new Color(0.75f, 0.8f, 0.9f), 0.6f);
+        if (materials.TryGetValue("asphaltA", out Material a)) dc.asphalt.Add(a);
+        if (materials.TryGetValue("asphaltB", out Material b)) dc.asphalt.Add(b);
+    }
+
+    private void SetupTutorial()
+    {
+        Text text = LowPolyUI.Label(raceCanvas.transform, "", 30, TextAnchor.MiddleCenter, Color.white, "Tutorial", true);
+        LowPolyUI.Place(text.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, 260f), new Vector2(1500f, 60f));
+        var bg = text.gameObject.AddComponent<Outline>();
+        bg.effectColor = new Color(0f, 0f, 0f, 0.9f);
+        bg.effectDistance = new Vector2(2f, -2f);
+        var t = player.gameObject.AddComponent<TutorialHints>();
+        t.car = player.Controller;
+        t.racer = player;
+        t.text = text;
+    }
+
+    private void SetupAchievements()
+    {
+        Text toast = LowPolyUI.Label(raceCanvas.transform, "", 30, TextAnchor.UpperCenter, LowPolyUI.Accent, "Toast", true);
+        LowPolyUI.Place(toast.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -110f), new Vector2(1200f, 90f));
+        toast.enabled = false;
+        var tracker = player.gameObject.AddComponent<AchievementTracker>();
+        tracker.car = player.Controller;
+        tracker.racer = player;
+        tracker.toast = toast;
+    }
+
+    private Camera CreateCameras(CarController target, int playerIndex)
+    {
+        var chase = new GameObject("ChaseCamera" + (playerIndex + 1));
+        if (playerIndex == 0) chase.tag = "MainCamera";
         Camera chaseCam = SetupCamera(chase);
-        chase.AddComponent<AudioListener>();
+        if (playerIndex == 0) chase.AddComponent<AudioListener>();
         chase.transform.position = target.transform.TransformPoint(0f, 3f, -8f);
         var follow2 = chase.AddComponent<CameraFollow2>();
         follow2.target = target.transform;
@@ -192,7 +311,14 @@ public partial class LowPolyRaceBootstrap
         follow2.damping = 6f;
         follow2.rotationDamping = 8f;
         chase.AddComponent<ChaseCameraFX>().target = target;
-        if (weather != null) weather.followCamera = chase.transform;
+        if (weather != null && playerIndex == 0) weather.followCamera = chase.transform;
+
+        if (SplitScreen)
+        {
+            // Hráč 1 nahoře, hráč 2 dole
+            chaseCam.rect = playerIndex == 0 ? new Rect(0f, 0.5f, 1f, 0.5f) : new Rect(0f, 0f, 1f, 0.5f);
+            return chaseCam;
+        }
 
         var top = new GameObject("TopCamera");
         Camera topCam = SetupCamera(top);
@@ -205,18 +331,18 @@ public partial class LowPolyRaceBootstrap
         var swap = new GameObject("CameraSwap").AddComponent<CameraSwap>();
         swap.cameraOne = chaseCam;
         swap.cameraTwo = topCam;
+        return chaseCam;
     }
 
     // ================================================================ HUD a pauza
 
-    private void CreateHud()
+    private PlayerHud CreatePlayerHud(Player p, Canvas canvas, bool primary)
     {
-        raceCanvas = LowPolyUI.CreateCanvas("RaceCanvas");
-        Transform root = raceCanvas.transform;
-        Color playerColor = CarColors[RaceSetup.colorIndex];
+        Transform root = canvas.transform;
+        Color playerColor = p == humans[0] ? CarColors[RaceSetup.colorIndex] : CarColors[RaceSetup.carColor2];
+        float panelAlpha = GameSettings.HighContrast ? 0.9f : 0.6f;
 
-        // --- Panel s koly a časy (vlevo nahoře)
-        RectTransform panel = LowPolyUI.Panel(root, "RacePanel", new Color(0.03f, 0.05f, 0.1f, 0.6f));
+        RectTransform panel = LowPolyUI.Panel(root, "RacePanel", new Color(0.03f, 0.05f, 0.1f, panelAlpha));
         LowPolyUI.Place(panel, new Vector2(0f, 1f), new Vector2(24f, -24f), new Vector2(420f, 250f));
         RectTransform stripe = LowPolyUI.Panel(panel, "Stripe", playerColor);
         LowPolyUI.Place(stripe, new Vector2(0f, 1f), Vector2.zero, new Vector2(10f, 250f));
@@ -233,43 +359,68 @@ public partial class LowPolyRaceBootstrap
         }
         lines[2].color = new Color(0.6f, 0.8f, 1f);
 
-        // --- Nitro (pod panelem)
-        RectTransform nitroBg = LowPolyUI.Panel(root, "NitroBar", new Color(0.03f, 0.05f, 0.1f, 0.6f));
+        // Nitro
+        RectTransform nitroBg = LowPolyUI.Panel(root, "NitroBar", new Color(0.03f, 0.05f, 0.1f, panelAlpha));
         LowPolyUI.Place(nitroBg, new Vector2(0f, 1f), new Vector2(24f, -284f), new Vector2(420f, 34f));
         Text nitroLabel = LowPolyUI.Label(nitroBg, "NITRO", 20, TextAnchor.MiddleLeft, Color.white, "NitroLabel");
         LowPolyUI.Place(nitroLabel.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(14f, 0f), new Vector2(100f, 30f));
-        RectTransform track01 = LowPolyUI.Panel(nitroBg, "Track", new Color(1f, 1f, 1f, 0.12f));
-        LowPolyUI.Place(track01, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(110f, 0f), new Vector2(296f, 16f));
-        nitroFill = LowPolyUI.Panel(track01, "Fill", new Color(0.3f, 0.85f, 1f));
+        RectTransform barTrack = LowPolyUI.Panel(nitroBg, "Track", new Color(1f, 1f, 1f, 0.12f));
+        LowPolyUI.Place(barTrack, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(110f, 0f), new Vector2(296f, 16f));
+        RectTransform nitroFill = LowPolyUI.Panel(barTrack, "Fill", new Color(0.3f, 0.85f, 1f));
         nitroFill.anchorMin = Vector2.zero;
         nitroFill.anchorMax = new Vector2(0.3f, 1f);
         nitroFill.offsetMin = nitroFill.offsetMax = Vector2.zero;
 
-        driftText = LowPolyUI.Label(root, "DRIFT!", 44, TextAnchor.MiddleCenter, new Color(1f, 0.6f, 0.2f), "Drift");
-        LowPolyUI.Place(driftText.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, 190f), new Vector2(600f, 60f));
-        driftText.enabled = false;
+        Text drift = LowPolyUI.Label(root, "DRIFT!", 44, TextAnchor.MiddleCenter, new Color(1f, 0.6f, 0.2f), "Drift");
+        LowPolyUI.Place(drift.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, 190f), new Vector2(600f, 60f));
+        drift.enabled = false;
 
-        // --- Minimapa (vlevo dole)
-        Minimap minimap = Minimap.Create((RectTransform)root, track.centers, settings.roadWidth, 300f);
-        foreach (var ai in opponents)
-            minimap.AddRacer(ai.transform, ai.GetComponentInChildren<MeshRenderer>().sharedMaterials[0].color, false);
-        minimap.AddRacer(player.transform, playerColor, true);
+        if (!SplitScreen || primary)
+        {
+            Minimap minimap = Minimap.Create((RectTransform)root, track.centers, settings.roadWidth, SplitScreen ? 220f : 300f);
+            foreach (var ai in opponents)
+                minimap.AddRacer(ai.transform, ai.GetComponentInChildren<MeshRenderer>().sharedMaterials[0].color, false);
+            for (int h = 0; h < humans.Count; h++)
+                minimap.AddRacer(humans[h].transform, h == 0 ? CarColors[RaceSetup.colorIndex] : CarColors[RaceSetup.carColor2], true);
+        }
 
-        // --- Pauza
-        RectTransform pause = LowPolyUI.Panel(root, "Pause", new Color(0.02f, 0.04f, 0.08f, 0.78f));
+        var manager = new GameObject("HudManager" + p.DisplayName);
+        var ui = manager.AddComponent<UIController>();
+        ui.UIRacePanel = panel.gameObject;
+        ui.UITextCurrentLap = lap;
+        ui.UITextCurrentTime = time;
+        ui.UITextLastLap = lines[0];
+        ui.UITextBestLap = lines[1];
+        ui.UITextAIBestLap = lines[2];
+        ui.UpdateUIForPlayer = p;
+        ui.UpdateUIForAIPlayer = opponents.Count > 0 ? opponents[0] : null;
+        ui.totalLaps = RaceSetup.laps;
+        ui.lowPolyStyle = true;
+        ui.overlayFont = LowPolyUI.numberFont;
+        ui.useCountdown = primary; // odpočet stačí jeden
+        if (opponents.Count == 0) lines[2].text = "";
+        if (primary) manager.AddComponent<TuningOverlay>().car = p.Controller;
+
+        return new PlayerHud { player = p, ui = ui, nitroFill = nitroFill, drift = drift };
+    }
+
+    private void CreatePauseMenu()
+    {
+        Transform root = raceCanvas.transform;
+        RectTransform pause = LowPolyUI.Panel(root, "Pause", new Color(0.02f, 0.04f, 0.08f, 0.85f));
         LowPolyUI.Stretch(pause);
         pause.gameObject.SetActive(false);
 
         Text title = LowPolyUI.Label(pause, "PAUSED", 96, TextAnchor.MiddleCenter, Color.white, "Title");
         LowPolyUI.Place(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -70f), new Vector2(900f, 140f));
-        string conditions = (theme.night ? "NIGHT" : "DAY") + (theme.rain ? "   |   RAIN" : "");
-        Text trackName = LowPolyUI.Label(pause, $"{definition.name}   |   {conditions}", 30, TextAnchor.MiddleCenter, LowPolyUI.Accent, "Track", true);
-        LowPolyUI.Place(trackName.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -200f), new Vector2(1200f, 40f));
+        string time = Dynamic ? (RaceSetup.dynamicTime ? "DUSK" : "DAY") : theme.night ? "NIGHT" : "DAY";
+        string conditions = time + (RaceSetup.dynamicWeather ? "   |   CHANGING" : theme.rain ? "   |   RAIN" : "");
+        Text trackName = LowPolyUI.Label(pause, $"{definition.name.ToUpper()}   |   {conditions}", 30, TextAnchor.MiddleCenter, LowPolyUI.Accent, "Track", true);
+        LowPolyUI.Place(trackName.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -200f), new Vector2(1400f, 40f));
 
         var manager = new GameObject("RaceManager");
         pauseMenu = manager.AddComponent<PauseMenu>();
         pauseMenu.pauseMenuUI = pause.gameObject;
-        manager.AddComponent<TuningOverlay>().car = player.Controller;
 
         string[] labels = { "RESUME", "RESTART", "CHANGE RACE", "MAIN MENU" };
         System.Action[] actions =
@@ -305,22 +456,7 @@ public partial class LowPolyRaceBootstrap
         var leaderboard = pause.gameObject.AddComponent<Leaderboard>();
         leaderboard.storageKey = definition.LeaderboardKey;
         leaderboard.racingTimeFormat = true;
-
-        // --- UIController (rychloměr, pořadí a odpočet si vytvoří sám)
-        hud = manager.AddComponent<UIController>();
-        hud.UIRacePanel = panel.gameObject;
-        hud.UITextCurrentLap = lap;
-        hud.UITextCurrentTime = time;
-        hud.UITextLastLap = lines[0];
-        hud.UITextBestLap = lines[1];
-        hud.UITextAIBestLap = lines[2];
-        hud.UpdateUIForPlayer = player;
-        hud.UpdateUIForAIPlayer = opponents.Count > 0 ? opponents[0] : null;
-        hud.leaderboard = leaderboard;
-        hud.totalLaps = RaceSetup.laps;
-        hud.lowPolyStyle = true;
-        hud.overlayFont = LowPolyUI.numberFont;
-        if (opponents.Count == 0) lines[2].text = "";
+        foreach (var h in huds) h.ui.leaderboard = leaderboard;
 
         pause.SetAsLastSibling();
     }
@@ -342,52 +478,45 @@ public partial class LowPolyRaceBootstrap
 
     private void UpdateRace()
     {
-        if (!racing || player == null) return;
+        if (!racing) return;
         bool paused = PauseMenu.GameIsPaused;
-        CarController car = player.Controller;
-        if (nitroFill != null)
+        foreach (var h in huds)
         {
-            nitroFill.anchorMax = new Vector2(Mathf.Clamp01(car.Nitro), 1f);
-            nitroFill.GetComponent<Image>().color = car.NitroActive ? new Color(1f, 0.55f, 0.15f) : new Color(0.3f, 0.85f, 1f);
-        }
-        if (driftText != null)
-        {
-            driftText.enabled = !paused && car.DriftAmount > 0.35f && !playerFinished;
-            if (driftText.enabled)
-                driftText.rectTransform.localScale = Vector3.one * (1f + Mathf.Sin(Time.time * 12f) * 0.05f);
+            if (h.player == null) continue;
+            CarController car = h.player.Controller;
+            h.nitroFill.anchorMax = new Vector2(Mathf.Clamp01(car.Nitro), 1f);
+            h.nitroFill.GetComponent<Image>().color = car.NitroActive ? new Color(1f, 0.55f, 0.15f) : new Color(0.3f, 0.85f, 1f);
+            h.drift.enabled = !paused && car.DriftAmount > 0.35f && car.InputEnabled;
+            if (h.drift.enabled)
+                h.drift.rectTransform.localScale = Vector3.one * (1f + Mathf.Sin(Time.time * 12f) * 0.05f);
         }
     }
 
     // ================================================================ cíl a výsledky
 
-    private float RacerTime(RacerBase racer)
-    {
-        return raceTimes.TryGetValue(racer, out float t) ? t : 0f;
-    }
+    private float RacerTime(RacerBase racer) => raceTimes.TryGetValue(racer, out float t) ? t : 0f;
 
-    private void AddLapTime(RacerBase racer, float lap)
-    {
-        raceTimes[racer] = RacerTime(racer) + lap;
-    }
+    private void AddLapTime(RacerBase racer, float lap) => raceTimes[racer] = RacerTime(racer) + lap;
 
-    private void OnPlayerLap(float lapTime)
+    private void OnHumanLap(Player p, float lapTime)
     {
-        if (playerFinished) return;
-        AddLapTime(player, lapTime);
-        playerRaceTime = RacerTime(player);
+        if (finishOrder.Contains(p)) return;
+        AddLapTime(p, lapTime);
+        UIController ui = huds.Find(h => h.player == p).ui;
 
-        int lapsDone = player.CurrentLap; // událost přichází před započetím dalšího kola
+        int lapsDone = p.CurrentLap; // událost přichází před započetím dalšího kola
         if (lapsDone == RaceSetup.laps - 1 && RaceSetup.laps > 1)
-            hud.ShowMessage("FINAL LAP!", 2f, LowPolyUI.Accent);
-
+            ui.ShowMessage("FINAL LAP!", 2f, LowPolyUI.Accent);
         if (lapsDone < RaceSetup.laps) return;
 
-        playerFinished = true;
-        finishOrder.Add(player);
-        finishTimes[player] = playerRaceTime;
-        player.Controller.InputEnabled = false;
-        hud.ShowMessage("FINISH!", 2f, Color.white);
-        StartCoroutine(ShowResults());
+        finishOrder.Add(p);
+        finishTimes[p] = RacerTime(p);
+        p.Controller.InputEnabled = false;
+        ui.ShowMessage("FINISH!", 2f, Color.white);
+
+        // Výsledky, až dojedou všichni lidští hráči
+        if (humans.TrueForAll(h => finishOrder.Contains(h)) && !resultsShown)
+            StartCoroutine(ShowResults());
     }
 
     private void OnOpponentLap(AIPlayer ai, float lapTime)
@@ -415,6 +544,7 @@ public partial class LowPolyRaceBootstrap
 
     private IEnumerator ShowResults()
     {
+        resultsShown = true;
         yield return new WaitForSeconds(1.8f);
         if (pauseMenu != null)
         {
@@ -425,7 +555,15 @@ public partial class LowPolyRaceBootstrap
         List<RacerBase> order = FinalOrder();
         int position = order.IndexOf(player) + 1;
         bool timeTrial = RaceSetup.mode == RaceSetup.Mode.TimeTrial;
-        if (!timeTrial && position == 1) Profile.Wins++;
+        bool won = !timeTrial && !SplitScreen && position == 1;
+        if (won)
+        {
+            Profile.Wins++;
+            Achievements.Unlock("first_win");
+            if (Profile.Wins >= 3) Achievements.Unlock("hat_trick");
+            if (endTheme.night) Achievements.Unlock("night_rider");
+            if (endTheme.rain) Achievements.Unlock("rain_man");
+        }
 
         bool championship = RaceSetup.mode == RaceSetup.Mode.Championship && Championship.active;
         if (championship)
@@ -433,8 +571,8 @@ public partial class LowPolyRaceBootstrap
                 Championship.AddResult(order[i].DisplayName, i + 1);
 
         Transform root = raceCanvas.transform;
-        RectTransform panel = LowPolyUI.Panel(root, "Results", new Color(0.03f, 0.05f, 0.1f, 0.9f));
-        LowPolyUI.Place(panel, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(championship ? 1180f : 820f, 800f));
+        RectTransform panel = LowPolyUI.Panel(root, "Results", new Color(0.03f, 0.05f, 0.1f, 0.92f));
+        LowPolyUI.Place(panel, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(championship ? 1180f : 820f, 820f));
 
         string heading = championship ? $"ROUND {Championship.round + 1} OF {Championship.Rounds}" : timeTrial ? "TIME TRIAL" : "RACE FINISHED";
         Text title = LowPolyUI.Label(panel, heading, 36, TextAnchor.MiddleCenter, Dim, "Title");
@@ -442,10 +580,11 @@ public partial class LowPolyRaceBootstrap
 
         Color[] medal = { new Color(1f, 0.82f, 0.2f), new Color(0.8f, 0.84f, 0.9f), new Color(0.85f, 0.55f, 0.3f) };
         float leftX = championship ? -190f : 0f;
-        Text pos = LowPolyUI.Label(panel, timeTrial ? "DONE" : Ordinal(position), 120, TextAnchor.MiddleCenter,
-            !timeTrial && position <= 3 ? medal[position - 1] : Color.white, "Position");
+        string big = timeTrial ? "DONE" : SplitScreen ? (order.IndexOf(humans[0]) < order.IndexOf(humans[1]) ? "P1 WINS" : "P2 WINS") : Ordinal(position);
+        Text pos = LowPolyUI.Label(panel, big, SplitScreen ? 90 : 120, TextAnchor.MiddleCenter,
+            !timeTrial && !SplitScreen && position <= 3 ? medal[position - 1] : Color.white, "Position");
         LowPolyUI.Place(pos.rectTransform, new Vector2(0.5f, 1f), new Vector2(leftX, -76f), new Vector2(700f, 140f));
-        Text of = LowPolyUI.Label(panel, $"{definition.name}", 24, TextAnchor.MiddleCenter, Dim, "Of", true);
+        Text of = LowPolyUI.Label(panel, definition.name.ToUpper(), 24, TextAnchor.MiddleCenter, Dim, "Of", true);
         LowPolyUI.Place(of.rectTransform, new Vector2(0.5f, 1f), new Vector2(leftX, -214f), new Vector2(700f, 32f));
 
         // Pořadí všech jezdců
@@ -453,11 +592,10 @@ public partial class LowPolyRaceBootstrap
         for (int i = 0; i < order.Count; i++)
         {
             RacerBase r = order[i];
-            bool isPlayer = r == player;
+            bool human = r is Player;
             string t = finishTimes.TryGetValue(r, out float ft) ? TimeFormat.FormatRacing(ft) : "RUNNING";
             int points = championship && i < Championship.Points.Length ? Championship.Points[i] : 0;
-            string pts = championship ? $"+{points}" : "";
-            ResultRow(panel, $"{i + 1}.  {r.DisplayName}", t, pts, leftX, y, isPlayer ? LowPolyUI.Accent : Color.white);
+            ResultRow(panel, $"{i + 1}.  {r.DisplayName}", t, championship ? $"+{points}" : "", leftX, y, human ? LowPolyUI.Accent : Color.white);
             y -= 40f;
         }
         y -= 10f;
@@ -488,12 +626,16 @@ public partial class LowPolyRaceBootstrap
             if (Championship.IsLastRound)
             {
                 champFinished = true;
-                bool won = standings.Count > 0 && standings[0].Key == player.DisplayName;
-                if (won) Profile.Championships++;
-                Text champ = LowPolyUI.Label(panel, won ? "CHAMPION!" : $"FINAL: {Ordinal(standings.FindIndex(s => s.Key == player.DisplayName) + 1)}",
-                    44, TextAnchor.MiddleCenter, won ? medal[0] : Color.white, "Champion");
+                bool champion = standings.Count > 0 && standings[0].Key == player.DisplayName;
+                if (champion)
+                {
+                    Profile.Championships++;
+                    Achievements.Unlock("champion");
+                }
+                Text champ = LowPolyUI.Label(panel, champion ? "CHAMPION!" : $"FINAL  {Ordinal(standings.FindIndex(s => s.Key == player.DisplayName) + 1)}",
+                    44, TextAnchor.MiddleCenter, champion ? medal[0] : Color.white, "Champion");
                 LowPolyUI.Place(champ.rectTransform, new Vector2(0.5f, 1f), new Vector2(370f, -420f), new Vector2(420f, 60f));
-                if (won)
+                if (champion)
                 {
                     Text unlock = LowPolyUI.Label(panel, "FORMULA, GOLD AND CHROME UNLOCKED", 20, TextAnchor.MiddleCenter, LowPolyUI.Accent, "Unlock");
                     LowPolyUI.Place(unlock.rectTransform, new Vector2(0.5f, 1f), new Vector2(370f, -470f), new Vector2(520f, 30f));
@@ -528,20 +670,26 @@ public partial class LowPolyRaceBootstrap
                 pauseMenu.Restart();
             });
         }
+        labels.Add("REPLAY");
+        actions.Add(() =>
+        {
+            // Schovat HUD i výsledky, po skončení replaye je vrátit
+            var canvases = new List<Canvas> { raceCanvas };
+            foreach (var c in FindObjectsOfType<Canvas>()) if (c.name.StartsWith("HudP")) canvases.Add(c);
+            foreach (var c in canvases) c.enabled = false;
+            replay.Play(() => { foreach (var c in canvases) if (c != null) c.enabled = true; });
+        });
         labels.Add("CHANGE");
         actions.Add(() => { RaceSetup.configured = false; RaceSetup.screen = RaceSetup.Screen.Setup; Championship.active = false; pauseMenu.Restart(); });
         labels.Add("MENU");
         actions.Add(() => { Championship.active = false; pauseMenu.LoadMenu(); });
 
+        float width = 200f, gap = 14f;
+        float startX = -(labels.Count - 1) * (width + gap) * 0.5f;
         for (int i = 0; i < labels.Count; i++)
         {
-            Image b = LowPolyUI.Button(panel, labels[i], 28, actions[i], out Text label);
-            if (i == 0)
-            {
-                b.color = LowPolyUI.Accent;
-                label.color = new Color(0.1f, 0.08f, 0.05f);
-            }
-            LowPolyUI.Place((RectTransform)b.transform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2((i - 1) * 250f, 36f), new Vector2(234f, 76f));
+            Image b = i == 0 ? AccentButton(panel, labels[i], 24, actions[i]) : LowPolyUI.Button(panel, labels[i], 24, actions[i]);
+            LowPolyUI.Place((RectTransform)b.transform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(startX + i * (width + gap), 36f), new Vector2(width, 72f));
         }
     }
 

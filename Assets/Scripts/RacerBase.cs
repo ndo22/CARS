@@ -47,21 +47,9 @@ public abstract class RacerBase : MonoBehaviour
         startPosition = transform.position;
         startRotation = transform.rotation;
 
-        var parent = GameObject.Find("Checkpoints");
-        if (parent == null)
-        {
-            Debug.LogError("Ve scéně chybí objekt 'Checkpoints'.");
-            return;
-        }
-
-        // Seřadit podle čísla v názvu, ať nezáleží na pořadí v hierarchii
-        var list = new List<Transform>();
-        foreach (Transform child in parent.transform)
-        {
-            if (int.TryParse(child.name, out _))
-                list.Add(child);
-        }
-        checkpoints = list.OrderBy(t => int.Parse(t.name)).ToArray();
+        checkpoints = CheckpointSet.Find();
+        if (checkpoints.Length == 0)
+            Debug.LogError("Ve scéně chybí checkpointy.");
     }
 
     protected virtual void Update()
@@ -124,7 +112,8 @@ public abstract class RacerBase : MonoBehaviour
         if (other.gameObject.layer != checkpointLayer || CheckpointCount == 0)
             return;
 
-        if (other.gameObject.name == "1")
+        int number = Checkpoint.NumberOf(other.gameObject);
+        if (number == 1)
         {
             bool lapFinished = lastCheckpointPassed == CheckpointCount;
             if (lapFinished)
@@ -135,7 +124,7 @@ public abstract class RacerBase : MonoBehaviour
         }
 
         // Checkpointy se musí projet popořadě, jinak se nepočítají (žádné zkratky)
-        if (other.gameObject.name == (lastCheckpointPassed + 1).ToString())
+        if (number == lastCheckpointPassed + 1)
             lastCheckpointPassed++;
     }
 

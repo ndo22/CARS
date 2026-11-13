@@ -14,7 +14,18 @@ public static class LowPolyUI
 
     public static readonly Color Accent = new Color(1f, 0.78f, 0.18f);
     public static readonly Color ButtonColor = new Color(1f, 1f, 1f, 0.12f);
-    public static readonly Color PanelColor = new Color(0.03f, 0.05f, 0.1f, 0.72f);
+    /// <summary>Barva panelů - ve vysokém kontrastu téměř neprůhledná.</summary>
+    public static Color PanelColor => new Color(0.03f, 0.05f, 0.1f, GameSettings.HighContrast ? 0.94f : 0.72f);
+
+    /// <summary>Plátno vykreslené do výřezu kamery (split-screen - každý hráč má svůj HUD).</summary>
+    public static Canvas CreateCanvas(string name, Camera camera)
+    {
+        Canvas canvas = CreateCanvas(name);
+        canvas.renderMode = RenderMode.ScreenSpaceCamera;
+        canvas.worldCamera = camera;
+        canvas.planeDistance = 1f;
+        return canvas;
+    }
 
     public static Canvas CreateCanvas(string name, int sortingOrder = 0)
     {
@@ -31,7 +42,7 @@ public static class LowPolyUI
         canvas.sortingOrder = sortingOrder;
         var scaler = go.AddComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution = new Vector2(1920f, 1080f);
+        scaler.referenceResolution = new Vector2(1920f, 1080f) / GameSettings.UiScaleFactor;
         scaler.matchWidthOrHeight = 0.5f;
         go.AddComponent<GraphicRaycaster>();
         return canvas;
@@ -86,7 +97,7 @@ public static class LowPolyUI
         button.onClick.AddListener(() =>
         {
             if (AudioManager.instance != null) AudioManager.instance.Play("Click");
-            onClick();
+            onClick?.Invoke();
         });
 
         text = Label(rect, label, fontSize, TextAnchor.MiddleCenter, Color.white, "Label");

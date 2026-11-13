@@ -81,6 +81,35 @@ public static class TrackLibrary
         },
     };
 
+    /// <summary>Témata, ze kterých si vybírá editor tratí.</summary>
+    public static readonly System.Func<TrackTheme>[] Themes = { TrackTheme.Meadow, TrackTheme.Desert, TrackTheme.Snow, TrackTheme.Coast, TrackTheme.City };
+    public static readonly string[] ThemeNames = { "MEADOW", "DESERT", "SNOW", "COAST", "CITY" };
+
+    /// <summary>Počet tratí včetně vlastních z editoru.</summary>
+    public static int Count => All.Length + CustomTracks.All.Count;
+
+    public static TrackDefinition Get(int index)
+    {
+        if (index < All.Length) return All[Mathf.Max(0, index)];
+        CustomTracks.Track c = CustomTracks.All[Mathf.Clamp(index - All.Length, 0, CustomTracks.All.Count - 1)];
+        return FromCustom(c);
+    }
+
+    public static TrackDefinition FromCustom(CustomTracks.Track c)
+    {
+        return new TrackDefinition
+        {
+            id = "custom_" + c.id,
+            name = c.name,
+            description = "Your own track - " + ThemeNames[Mathf.Clamp(c.theme, 0, Themes.Length - 1)].ToLower(),
+            theme = Themes[Mathf.Clamp(c.theme, 0, Themes.Length - 1)],
+            points = c.points,
+            heightScale = 1f,
+            roadWidth = 14f,
+            seed = c.id,
+        };
+    }
+
     /// <summary>Téma tratě s ohledem na zvolenou denní dobu a počasí.</summary>
     public static TrackTheme Theme(TrackDefinition d, bool night, bool rain)
     {

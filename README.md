@@ -60,14 +60,36 @@ Hra startuje scénou `LowPolyTrack` – titulní menu: **QUICK RACE**, **CHAMPIO
 - **Procedurální hudba a zvuky** (generované kódem, bez licencí).
 - Náhled tratě v editoru: menu **CARS → Low Poly → Preview …** (do scény se neukládá).
 
+### Další funkce
+
+- **Split-screen pro 2 hráče** (rychlý závod): hráč 1 má WASD a gamepad 1, hráč 2 šipky, pravý Ctrl (drift), pravý Shift (nitro), Enter (reset) a gamepad 2.
+- **Replay** po závodě: TV kamery u trati, kamera za autem, kroužící kamera, zpomalení a zrychlení, přepínání aut.
+- **Editor tratí** (titulní menu → TRACK EDITOR): body se klikají a táhnou myší, kolečkem se mění výška,
+  trať se průběžně kontroluje (ostré zatáčky, křížení, stoupání). Uložené tratě jsou v seznamu tratí a dá se na nich hned jet.
+- **Poškození**: promáčknutí v místě nárazu, odletující úlomky, kouř z motoru, nižší maximální rychlost (vypínatelné).
+- **Plynulé podmínky**: DUSK (během závodu se setmí) a CHANGING (začne pršet, silnice zvlhne a klouže).
+- **Úspěchy** (12) s oznámením ve hře; některé odemykají **kosmetiku**: vzory laku (pruhy, pásy, šachovnice),
+  barvy disků, vlastní startovní číslo.
+- **Dotykové ovládání** a ovládání náklonem pro mobil (Android: orientace na šířku, ID `com.lowpoly.cars`).
+- **Přístupnost**: asistence řízení a brzdění, velikost UI, vysoký kontrast, návod při prvním závodě.
+- **Výkon**: hudba se počítá na pozadí, prostorový index trati (rychlejší stavění terénu), rozsvícených je jen 10 lamp nejblíž kameře.
+
+### Testy a CI
+
+- `Assets/Tests/EditMode` – testy v Unity (Window → General → Test Runner → EditMode).
+- `Tools/ci/compile-check.sh` – zkompiluje všechny skripty proti referenčním knihovnám Unity 2021.3 (bez instalace Unity).
+- `Tools/ci/logic-tests.sh` – spustí stejné testy bez Unity (přes náhradu Unity API).
+- `.github/workflows/ci.yml` – obojí běží na GitHubu při každém pushi. Testy a buildy v Unity (Windows, Android)
+  se spustí, až do secrets repozitáře přidáš `UNITY_LICENSE`, `UNITY_EMAIL` a `UNITY_PASSWORD` (viz game.ci).
+
 ### Struktura kódu
 
-- `Core/` – `GameInput` (klávesy + gamepad), `GameSettings` (hlasitosti, grafika).
+- `Core/` – `GameInput` (klávesy, gamepad, dotyk), `GameSettings`, `Achievements`, `TrackMarkers` (checkpointy, povrchy).
 - `LowPoly/` – generátor tratí (`TrackGenerator`, `TrackLibrary`, `TrackTheme`), auta (`LowPolyCarFactory`),
   menu a závod (`LowPolyRaceBootstrap` + `.Menu.cs` + `.Race.cs`), `RaceSetup` (volby, šampionát, odemykání).
-- `Effects/` – částice, zvuky, ghost, kamera, obloha a počasí, postprocessing, ladicí okno.
+- `Effects/` – částice, zvuky, ghost, replay, poškození, asistence, návod, dotykové ovládání, plynulé podmínky, kamera, obloha a počasí, postprocessing, ladicí okno.
 - `Shaders/` – obloha, voda, listí, ghost, postprocessing. Když shader nejde, použije se Standard.
-- `Editor/` – náhled tratě v editoru.
+- `Editor/` – náhled tratě v editoru Unity. Kód je rozdělený do assembly `CARS`, `CARS.Editor` a `CARS.Tests`.
 
 Novou trať přidáš jedním záznamem v `TrackLibrary.All`.
 

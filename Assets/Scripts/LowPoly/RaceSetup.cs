@@ -6,7 +6,7 @@ using UnityEngine;
 /// </summary>
 public static class RaceSetup
 {
-    public enum Screen { Title, Setup, Settings }
+    public enum Screen { Title, Setup, Settings, Editor, Achievements }
     public enum Mode { QuickRace, Championship, TimeTrial }
 
     /// <summary>true = hráč už si vybral a scéna má rovnou spustit závod (např. po restartu).</summary>
@@ -23,6 +23,16 @@ public static class RaceSetup
     public static int laps = 3;
     public static bool night;
     public static bool rain;
+    /// <summary>Podmínky se během závodu mění: z dne do noci / ze sucha do deště.</summary>
+    public static bool dynamicTime, dynamicWeather;
+    /// <summary>Počet hráčů (2 = split-screen, jen v rychlém závodě).</summary>
+    public static int players = 1;
+    public static int carColor2 = 1;
+    public static LowPolyCarFactory.BodyStyle carStyle2 = LowPolyCarFactory.BodyStyle.Muscle;
+    /// <summary>Kosmetika: vzor laku, barva disků, startovní číslo.</summary>
+    public static int pattern, rims, number = 7;
+    /// <summary>Index vlastní tratě z editoru (-1 = vestavěná).</summary>
+    public static int customTrack = -1;
 
     public static readonly int[] OpponentOptions = { 1, 3, 5 };
     public static readonly int[] LapOptions = { 1, 3, 5 };
@@ -30,6 +40,7 @@ public static class RaceSetup
     public static readonly float[] DifficultySkill = { 0.82f, 0.93f, 1.03f };
 
     public static int Opponents => mode == Mode.TimeTrial ? 0 : opponents;
+    public static int Players => mode == Mode.QuickRace ? Mathf.Clamp(players, 1, 2) : 1;
 }
 
 /// <summary>Šampionát: série všech tratí, body za umístění.</summary>

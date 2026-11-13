@@ -74,21 +74,39 @@ public static class ProceduralAudio
         return impact;
     }
 
+    // Hudba se počítá na pozadí (vlákno), ať při startu hry nic nezasekne. Dokud není hotová, vrací null.
+    private static float[] raceData, menuData;
+    private static System.Threading.Tasks.Task preparing;
+
+    /// <summary>Spustí výpočet hudby na pozadí (volat co nejdřív).</summary>
+    public static void Prepare()
+    {
+        if (preparing != null) return;
+        preparing = System.Threading.Tasks.Task.Run(() =>
+        {
+            menuData = SongData(100f, new[] { 0, -5, -3, -7 }, false);
+            raceData = SongData(128f, new[] { 0, 0, -4, -4, -7, -7, -2, -2 }, true);
+        });
+    }
+
     /// <summary>Závodní hudba - jednoduchý synthwave (basa, arpeggio, bicí), 8 taktů ve smyčce.</summary>
     public static AudioClip RaceMusic()
     {
-        if (music == null) music = Song("RaceMusic", 128f, new[] { 0, 0, -4, -4, -7, -7, -2, -2 }, true);
+        Prepare();
+        if (music == null && raceData != null) music = Make("RaceMusic", raceData);
         return music;
     }
 
     /// <summary>Klidnější hudba do menu.</summary>
     public static AudioClip MenuMusic()
     {
-        if (menuMusic == null) menuMusic = Song("MenuMusic", 100f, new[] { 0, -5, -3, -7 }, false);
+        Prepare();
+        if (menuMusic == null && menuData != null) menuMusic = Make("MenuMusic", menuData);
         return menuMusic;
     }
 
-    private static AudioClip Song(string name, float bpm, int[] chordRoots, bool drums)
+    /// <summary>Vypočítá vzorky skladby (bez Unity API - smí běžet ve vlákně).</summary>
+    public static float[] SongData(float bpm, int[] chordRoots, bool drums)
     {
         float beat = 60f / bpm;
         int bars = chordRoots.Length;
@@ -140,7 +158,7 @@ public static class ProceduralAudio
             data[i] = Mathf.Clamp(s, -1f, 1f) * 0.8f;
         }
         LoopFade(data, 200);
-        return Make(name, data);
+        return data;
     }
 
     private static float Saw(float x) => 2f * (x - Mathf.Floor(x + 0.5f));

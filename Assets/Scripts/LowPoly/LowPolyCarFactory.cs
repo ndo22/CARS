@@ -68,6 +68,7 @@ public static class LowPolyCarFactory
     public class Options
     {
         public int number = -1;          // startovní číslo (-1 = žádné)
+        public int pattern;              // vzor laku (Cosmetics.Patterns)
         public bool headlights;          // skutečná světla (noc)
         public float headlightIntensity = 2.2f;
     }
@@ -181,7 +182,9 @@ public static class LowPolyCarFactory
         }
         AddDetails(mb, style, shape);
         if (options.number >= 0)
-            AddNumbers(mb, style, shape, options.number);
+            AddNumbers(mb, style, shape, options.number, options.pattern != 3);
+        if (options.pattern > 0)
+            AddPattern(mb, shape, options.pattern);
 
         var bodyGo = new GameObject("Body");
         bodyGo.layer = layer;
@@ -558,15 +561,79 @@ public static class LowPolyCarFactory
         }
     }
 
+    // ================================================================ vzory laku
+
+    /// <summary>Plochý pás po povrchu karoserie mezi dvěma body.</summary>
+    private static void Strip(MeshBuilder mb, int sub, Vector3 a, Vector3 b, float width, Vector3 normal)
+    {
+        Vector3 d = b - a;
+        if (d.sqrMagnitude < 0.0001f) return;
+        mb.Box(sub, (a + b) * 0.5f, new Vector3(width, 0.012f, d.magnitude + 0.01f), Quaternion.LookRotation(d, normal));
+    }
+
+    private static void AddPattern(MeshBuilder mb, Shape shape, int pattern)
+    {
+        Station[] body = shape.body;
+        switch (pattern)
+        {
+            case 1: // Závodní pruhy přes kapotu, střechu a kufr
+                foreach (float x in new[] { -0.22f, 0.22f })
+                {
+                    Station[] path = shape.cabin != null ? MergeTop(body, shape.cabin) : body;
+                    for (int i = 0; i < path.Length - 1; i++)
+                        Strip(mb, SubTrim, new Vector3(x, path[i].top + 0.008f, path[i].z), new Vector3(x, path[i + 1].top + 0.008f, path[i + 1].z), 0.16f, Vector3.up);
+                }
+                break;
+
+            case 2: // Pásy po bocích
+                for (int side = -1; side <= 1; side += 2)
+                    for (int i = 0; i < body.Length - 1; i++)
+                    {
+                        float y0 = Mathf.Lerp(body[i].bottom, body[i].top, 0.42f), y1 = Mathf.Lerp(body[i + 1].bottom, body[i + 1].top, 0.42f);
+                        Strip(mb, SubTrim, new Vector3(side * (body[i].halfWidth + 0.008f), y0, body[i].z),
+                            new Vector3(side * (body[i + 1].halfWidth + 0.008f), y1, body[i + 1].z), 0.14f, new Vector3(side, 0f, 0f));
+                    }
+                break;
+
+            case 3: // Šachovnice na střeše (nebo kapotě)
+            {
+                Station a, b;
+                if (shape.cabin != null) { a = shape.cabin[1]; b = shape.cabin[2]; }
+                else { a = Interpolate(body, 0.3f); b = Interpolate(body, 1.1f); }
+                float top = Mathf.Max(a.top, b.top) + 0.01f;
+                float w = Mathf.Min(a.halfWidth, b.halfWidth) * 1.4f, len = Mathf.Abs(b.z - a.z) * 0.85f;
+                const int cols = 4, rows = 4;
+                for (int x = 0; x < cols; x++)
+                    for (int z = 0; z < rows; z++)
+                    {
+                        Vector3 p = new Vector3(-w * 0.5f + (x + 0.5f) * w / cols, top, Mathf.Min(a.z, b.z) + Mathf.Abs(b.z - a.z) * 0.075f + (z + 0.5f) * len / rows);
+                        mb.Box((x + z) % 2 == 0 ? SubTrim : SubDark, p, new Vector3(w / cols, 0.012f, len / rows));
+                    }
+                break;
+            }
+        }
+    }
+
+    /// <summary>Horní obrys auta: karoserie, kde je kabina tak její střecha.</summary>
+    private static Station[] MergeTop(Station[] body, Station[] cabin)
+    {
+        var list = new List<Station>();
+        foreach (var s in body)
+            if (s.z < cabin[0].z || s.z > cabin[cabin.Length - 1].z) list.Add(s);
+        foreach (var s in cabin) list.Add(s);
+        list.Sort((p, q) => p.z.CompareTo(q.z));
+        return list.ToArray();
+    }
+
     // ================================================================ startovní čísla
 
     // Sedmisegmentový displej: a (nahoře), b (vpravo nahoře), c (vpravo dole), d (dole), e (vlevo dole), f (vlevo nahoře), g (uprostřed)
     private static readonly int[] DigitSegments = { 0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07, 0x7F, 0x6F };
 
-    private static void AddNumbers(MeshBuilder mb, BodyStyle style, Shape shape, int number)
+    private static void AddNumbers(MeshBuilder mb, BodyStyle style, Shape shape, int number, bool onRoof = true)
     {
         number = Mathf.Clamp(number, 0, 99);
-        if (shape.cabin != null)
+        if (shape.cabin != null && onRoof)
         {
             // Na střeše (čitelné shora) - kolečko + číslo
             Station roof = shape.cabin[1];

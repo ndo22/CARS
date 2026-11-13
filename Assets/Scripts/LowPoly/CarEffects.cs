@@ -101,8 +101,7 @@ public class CarEffects : MonoBehaviour
             bool skid = false;
             if (wheel != null && wheel.GetGroundHit(out WheelHit hit))
             {
-                string surface = hit.collider != null ? hit.collider.gameObject.name : "";
-                bool grass = surface == "Verge" || surface == "Terrain";
+                bool grass = SurfaceType.Of(hit.collider) == SurfaceType.Kind.Grass;
                 offRoad |= grass;
 
                 float slip = Mathf.Max(Mathf.Abs(hit.sidewaysSlip) / sidewaysSlipThreshold, Mathf.Abs(hit.forwardSlip) / forwardSlipThreshold);

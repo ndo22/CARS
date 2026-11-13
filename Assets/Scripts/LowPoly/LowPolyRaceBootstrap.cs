@@ -38,6 +38,9 @@ public partial class LowPolyRaceBootstrap : MonoBehaviour
     // Trať a prostředí
     private TrackLibrary.TrackDefinition definition;
     private TrackTheme theme;
+    /// <summary>Podmínky na konci závodu (liší se od startu, když se mění denní doba nebo počasí).</summary>
+    private TrackTheme endTheme;
+    private bool Dynamic => RaceSetup.dynamicTime || RaceSetup.dynamicWeather;
     private TrackGenerator.TrackSettings settings;
     private TrackGenerator.TrackResult track;
     private Transform world;
@@ -51,6 +54,7 @@ public partial class LowPolyRaceBootstrap : MonoBehaviour
         LowPolyUI.font = uiFont != null ? uiFont : Resources.GetBuiltinResource<Font>("Arial.ttf");
         LowPolyUI.numberFont = numberFont != null ? numberFont : LowPolyUI.font;
         GameSettings.Apply();
+        ProceduralAudio.Prepare();
 
         // Náhled tratě z editoru (menu CARS) do hry nepatří
         var preview = GameObject.Find(EditorPreviewName);
@@ -68,7 +72,7 @@ public partial class LowPolyRaceBootstrap : MonoBehaviour
 
         if (RaceSetup.mode == RaceSetup.Mode.Championship && Championship.active && RaceSetup.configured)
             RaceSetup.trackIndex = Mathf.Clamp(Championship.round, 0, TrackLibrary.All.Length - 1);
-        RaceSetup.trackIndex = Mathf.Clamp(RaceSetup.trackIndex, 0, TrackLibrary.All.Length - 1);
+        RaceSetup.trackIndex = Mathf.Clamp(RaceSetup.trackIndex, 0, TrackLibrary.Count - 1);
         if (!Profile.IsUnlocked(RaceSetup.carStyle)) RaceSetup.carStyle = LowPolyCarFactory.BodyStyle.Sport;
         if (!Profile.IsColorUnlocked(RaceSetup.colorIndex)) RaceSetup.colorIndex = 0;
 
@@ -80,16 +84,25 @@ public partial class LowPolyRaceBootstrap : MonoBehaviour
             ShowScreen(RaceSetup.screen);
     }
 
+    private System.Func<AudioClip> wantedMusic;
+
     private void Update()
     {
         if (music != null)
+        {
             music.volume = GameSettings.Music * 0.45f;
+            // Hudba se počítá na pozadí - spustit, jakmile je hotová
+            if (wantedMusic != null && music.clip == null) PlayMusic(wantedMusic);
+        }
         UpdateMenu();
         UpdateRace();
     }
 
-    private void PlayMusic(AudioClip clip)
+    private void PlayMusic(System.Func<AudioClip> source)
     {
+        wantedMusic = source;
+        AudioClip clip = source();
+        if (clip == null) { music.clip = null; return; }
         if (music.clip == clip && music.isPlaying) return;
         music.clip = clip;
         music.Play();
@@ -107,10 +120,14 @@ public partial class LowPolyRaceBootstrap : MonoBehaviour
             Destroy(world.gameObject);
         }
 
-        definition = TrackLibrary.All[index];
-        theme = TrackLibrary.Theme(definition, RaceSetup.night, RaceSetup.rain);
+        definition = TrackLibrary.Get(index);
+        bool startNight = RaceSetup.night && !RaceSetup.dynamicTime, startRain = RaceSetup.rain && !RaceSetup.dynamicWeather;
+        theme = TrackLibrary.Theme(definition, startNight, startRain);
+        endTheme = Dynamic ? TrackLibrary.Theme(definition, startNight || RaceSetup.dynamicTime, startRain || RaceSetup.dynamicWeather) : theme;
         settings = TrackLibrary.Settings(definition, theme);
+        settings.forceLamps = RaceSetup.dynamicTime;
         materials.Clear();
+        LampCuller.Darkness = theme.night ? 1f : 0f;
         SetupEnvironment();
 
         world = new GameObject("World").transform;
@@ -310,7 +327,7 @@ public partial class LowPolyRaceBootstrap : MonoBehaviour
         var old = GameObject.Find(EditorPreviewName);
         if (old != null) DestroyImmediate(old);
 
-        definition = TrackLibrary.All[Mathf.Clamp(index, 0, TrackLibrary.All.Length - 1)];
+        definition = TrackLibrary.Get(Mathf.Clamp(index, 0, TrackLibrary.Count - 1));
         theme = TrackLibrary.Theme(definition, night, rain);
         settings = TrackLibrary.Settings(definition, theme);
         materials.Clear();

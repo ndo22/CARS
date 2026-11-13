@@ -25,6 +25,8 @@ public static class TrackGenerator
         public int treeCount = 600;
         public int rockCount = 70;
         public int cloudCount = 18;
+        [Tooltip("Postavit lampy i ve dne (pro závod, kde se během jízdy setmí).")]
+        public bool forceLamps;
     }
 
     public class TrackResult
@@ -36,7 +38,74 @@ public static class TrackGenerator
         public Vector3 Center(int i) => centers[Mod(i, centers.Length)];
         public Vector3 Forward(int i) => forwards[Mod(i, forwards.Length)];
         public Vector3 Right(int i) => rights[Mod(i, rights.Length)];
+
+        // Prostorový index (mřížka) pro rychlé hledání nejbližšího bodu trati
+        internal const float IndexCell = 16f;
+        internal Dictionary<long, List<int>> index;
+        internal Vector2 indexMin;
+
+        internal void BuildIndex()
+        {
+            index = new Dictionary<long, List<int>>();
+            indexMin = new Vector2(float.MaxValue, float.MaxValue);
+            foreach (var c in centers) indexMin = Vector2.Min(indexMin, new Vector2(c.x, c.z));
+            for (int i = 0; i < centers.Length; i++)
+            {
+                long key = Key(Cell(centers[i].x, indexMin.x), Cell(centers[i].z, indexMin.y));
+                if (!index.TryGetValue(key, out var list)) index[key] = list = new List<int>();
+                list.Add(i);
+            }
+        }
+
+        internal static int Cell(float v, float min) => Mathf.FloorToInt((v - min) / IndexCell);
+        internal static long Key(int x, int z) => ((long)x << 32) ^ (uint)z;
     }
+
+    /// <summary>Výsledek kontroly tvaru tratě.</summary>
+    public struct Validation
+    {
+        public float length, minRadius, minGap, maxSlope;
+        public bool ok;
+        public string message;
+    }
+
+    /// <summary>
+    /// Zkontroluje, jestli je trať jezditelná: nejostřejší zatáčka, nejmenší vzdálenost dvou různých částí tratě
+    /// (aby se nekřížily ani nedotýkaly svodidly) a největší stoupání.
+    /// </summary>
+    public static Validation Validate(TrackSettings s)
+    {
+        TrackResult t = Sample(s);
+        int n = t.centers.Length;
+        var v = new Validation { length = t.length, minRadius = float.MaxValue, minGap = float.MaxValue };
+        for (int i = 0; i < n; i++)
+        {
+            Vector2 a = Flat(t.Center(i - 1)), b = Flat(t.Center(i)), c = Flat(t.Center(i + 1));
+            float area = Mathf.Abs((b.x - a.x) * (c.y - a.y) - (c.x - a.x) * (b.y - a.y)) * 0.5f;
+            if (area > 1e-5f)
+                v.minRadius = Mathf.Min(v.minRadius, Vector2.Distance(a, b) * Vector2.Distance(b, c) * Vector2.Distance(c, a) / (4f * area));
+            float run = Mathf.Max(0.01f, Vector2.Distance(a, b));
+            v.maxSlope = Mathf.Max(v.maxSlope, Mathf.Abs(t.Center(i).y - t.Center(i - 1).y) / run);
+        }
+        int skip = Mathf.CeilToInt(80f / s.segmentLength);
+        for (int i = 0; i < n; i++)
+            for (int j = i + 1; j < n; j++)
+            {
+                if (Mathf.Min(j - i, n - (j - i)) < skip) continue;
+                v.minGap = Mathf.Min(v.minGap, Vector2.Distance(Flat(t.centers[i]), Flat(t.centers[j])));
+            }
+
+        float needGap = s.roadWidth + s.barrierOffset * 2f + 8f;
+        float needRadius = s.roadWidth * 0.5f + s.barrierOffset + 2f;
+        if (n < 20 || t.length < 300f) v.message = "TRACK IS TOO SHORT";
+        else if (v.minGap < needGap) v.message = "TRACK OVERLAPS ITSELF";
+        else if (v.minRadius < needRadius) v.message = "A CORNER IS TOO TIGHT";
+        else if (v.maxSlope > 0.12f) v.message = "A HILL IS TOO STEEP";
+        else { v.ok = true; v.message = "TRACK OK"; }
+        return v;
+    }
+
+    private static Vector2 Flat(Vector3 p) => new Vector2(p.x, p.z);
 
     /// <summary>Materiály podle klíčů barev (viz <see cref="TrackTheme"/>).</summary>
     public interface IPalette
@@ -80,12 +149,15 @@ public static class TrackGenerator
         BuildBarriers(parent, track, s, palette);
         BuildStartGate(parent, track, s, palette);
         BuildTrackside(parent, track, isCorner, s, palette, rng);
-        if (theme.night) BuildLamps(parent, track, s, palette);
+        if (theme.night || s.forceLamps) BuildLamps(parent, track, s, palette);
         BuildCheckpoints(parent, track, s);
         BuildTerrainAndScenery(parent, track, s, theme, palette, rng);
 
         return track;
     }
+
+    /// <summary>Body středové čáry tratě (pro náhled v editoru).</summary>
+    public static Vector3[] SamplePath(TrackSettings s) => Sample(s).centers;
 
     /// <summary>Délka tratě v metrech (bez stavění geometrie) - pro výběr tratě v menu.</summary>
     public static float Length(TrackSettings s) => Sample(s).length;
@@ -127,6 +199,7 @@ public static class TrackGenerator
             result.rights[i] = Vector3.Cross(Vector3.up, f).normalized;
             result.length += Vector3.Distance(result.Center(i), result.Center(i + 1));
         }
+        result.BuildIndex();
         return result;
     }
 
@@ -202,6 +275,7 @@ public static class TrackGenerator
         // Krajnice zvlášť - podle jména collideru auto pozná, že jede mimo silnici (prach, zpomalení)
         var vergeGo = CreateMeshObject("Verge", parent, vergeMb.ToMesh("Verge"), palette, "vergeA", "vergeB");
         vergeGo.AddComponent<MeshCollider>().sharedMesh = vergeGo.GetComponent<MeshFilter>().sharedMesh;
+        vergeGo.AddComponent<SurfaceType>().kind = SurfaceType.Kind.Grass;
     }
 
     /// <summary>Pruh rovnoběžný se středem trati mezi bočními odsazeními <paramref name="from"/> a <paramref name="to"/>.</summary>
@@ -388,11 +462,14 @@ public static class TrackGenerator
         int every = Mathf.Max(1, Mathf.RoundToInt(s.checkpointSpacing / s.segmentLength));
         int count = n / every;
         int layer = LayerMask.NameToLayer("Checkpoint");
+        var list = new List<Transform>();
 
         for (int k = 0; k < count; k++)
         {
             int i = k * every;
             var cp = new GameObject((k + 1).ToString());
+            cp.AddComponent<Checkpoint>().number = k + 1;
+            list.Add(cp.transform);
             if (layer >= 0) cp.layer = layer;
             cp.transform.SetParent(root.transform, false);
             cp.transform.SetPositionAndRotation(t.Center(i) + Vector3.up * 3f, Quaternion.LookRotation(t.Forward(i), Vector3.up));
@@ -400,6 +477,7 @@ public static class TrackGenerator
             box.isTrigger = true;
             box.size = new Vector3(s.roadWidth + s.barrierOffset * 2f, 8f, 2f);
         }
+        root.AddComponent<CheckpointSet>().Register(list.ToArray());
     }
 
     // ---------------------------------------------------------------- terén a krajina
@@ -488,6 +566,7 @@ public static class TrackGenerator
         var terrainGo = CreateMeshObject("Terrain", parent, terrain.ToMesh("Terrain"), palette,
             "groundA", "groundB", "groundC", "high", "peak", "low");
         terrainGo.AddComponent<MeshCollider>().sharedMesh = terrainGo.GetComponent<MeshFilter>().sharedMesh;
+        terrainGo.AddComponent<SurfaceType>().kind = theme.flatGround ? SurfaceType.Kind.Road : SurfaceType.Kind.Grass;
 
         // --- Voda
         if (theme.hasWater)
@@ -930,6 +1009,7 @@ public static class TrackGenerator
         }
         var go = CreateMeshObject("LampPosts", root, mb.ToMesh("Lamps"), palette, "metal", "lamp");
         go.layer = 2;
+        root.gameObject.AddComponent<LampCuller>();
     }
 
     /// <summary>Město: mrakodrapy s rozsvícenými okny, neonové reklamy, střechy.</summary>
@@ -998,31 +1078,51 @@ public static class TrackGenerator
 
     private static void NearestOnTrack(TrackResult t, float x, float z, out float distance, out float roadY)
     {
-        float best = float.MaxValue;
-        roadY = 0f;
-        Vector3[] c = t.centers;
-        for (int i = 0; i < c.Length; i++)
-        {
-            float dx = c[i].x - x, dz = c[i].z - z;
-            float d = dx * dx + dz * dz;
-            if (d < best)
-            {
-                best = d;
-                roadY = c[i].y;
-            }
-        }
+        int i = NearestIndex(t, x, z, out float best);
+        roadY = t.centers[i].y;
         distance = Mathf.Sqrt(best);
+    }
+
+    /// <summary>Index nejbližšího bodu trati - prohledává mřížku po prstencích od nejbližší buňky.</summary>
+    private static int NearestIndex(TrackResult t, float x, float z, out float bestSqr)
+    {
+        bestSqr = float.MaxValue;
+        int bestIndex = 0;
+        Vector3[] c = t.centers;
+        if (t.index == null)
+        {
+            for (int i = 0; i < c.Length; i++)
+            {
+                float d = (c[i].x - x) * (c[i].x - x) + (c[i].z - z) * (c[i].z - z);
+                if (d < bestSqr) { bestSqr = d; bestIndex = i; }
+            }
+            return bestIndex;
+        }
+
+        int cx = TrackResult.Cell(x, t.indexMin.x), cz = TrackResult.Cell(z, t.indexMin.y);
+        for (int r = 0; r < 200; r++)
+        {
+            for (int dx = -r; dx <= r; dx++)
+                for (int dz = -r; dz <= r; dz++)
+                {
+                    if (Mathf.Abs(dx) != r && Mathf.Abs(dz) != r) continue; // jen okraj prstence
+                    if (!t.index.TryGetValue(TrackResult.Key(cx + dx, cz + dz), out var list)) continue;
+                    foreach (int i in list)
+                    {
+                        float d = (c[i].x - x) * (c[i].x - x) + (c[i].z - z) * (c[i].z - z);
+                        if (d < bestSqr) { bestSqr = d; bestIndex = i; }
+                    }
+                }
+            // Všechny buňky dalších prstenců jsou dál než r * velikost buňky
+            float reach = r * TrackResult.IndexCell;
+            if (bestSqr < float.MaxValue && bestSqr <= reach * reach) break;
+        }
+        return bestIndex;
     }
 
     private static void NearestPoint(TrackResult t, float x, float z, out Vector3 point)
     {
-        float best = float.MaxValue;
-        point = t.centers[0];
-        foreach (var c in t.centers)
-        {
-            float d = (c.x - x) * (c.x - x) + (c.z - z) * (c.z - z);
-            if (d < best) { best = d; point = c; }
-        }
+        point = t.centers[NearestIndex(t, x, z, out _)];
     }
 
     private static GameObject CreateMeshObject(string name, Transform parent, Mesh mesh, IPalette palette, params string[] materialKeys)
