@@ -150,6 +150,40 @@ public class MeshBuilder
         QuadOutward(sub, c[1], c[3], c[7], c[5], mid);
     }
 
+    /// <summary>Low-poly koule (UV sphere s málo segmenty).</summary>
+    public void Ball(int sub, Vector3 center, float radius, int rings = 4, int segments = 7)
+    {
+        for (int r = 0; r < rings; r++)
+        {
+            float lat0 = Mathf.PI * r / rings - Mathf.PI * 0.5f;
+            float lat1 = Mathf.PI * (r + 1) / rings - Mathf.PI * 0.5f;
+            for (int s = 0; s < segments; s++)
+            {
+                float lon0 = Mathf.PI * 2f * s / segments;
+                float lon1 = Mathf.PI * 2f * (s + 1) / segments;
+                Vector3 a = center + Spherical(lat0, lon0) * radius;
+                Vector3 b = center + Spherical(lat0, lon1) * radius;
+                Vector3 c = center + Spherical(lat1, lon1) * radius;
+                Vector3 d = center + Spherical(lat1, lon0) * radius;
+                if (r == 0) TriOutward(sub, a, c, d, center);
+                else if (r == rings - 1) TriOutward(sub, a, b, c, center);
+                else QuadOutward(sub, a, b, c, d, center);
+            }
+        }
+    }
+
+    private static Vector3 Spherical(float lat, float lon)
+    {
+        return new Vector3(Mathf.Cos(lat) * Mathf.Cos(lon), Mathf.Sin(lat), Mathf.Cos(lat) * Mathf.Sin(lon));
+    }
+
+    /// <summary>Oboustranný trojúhelník (listy palem, vlajky) - viditelný z obou stran.</summary>
+    public void TriDoubleSided(int sub, Vector3 a, Vector3 b, Vector3 c)
+    {
+        Tri(sub, a, b, c);
+        Tri(sub, a, c, b);
+    }
+
     public Mesh ToMesh(string name)
     {
         var mesh = new Mesh { name = name };

@@ -11,6 +11,8 @@ public class Leaderboard : MonoBehaviour
 {
     [Tooltip("Klíč v PlayerPrefs - každá trať může mít vlastní tabulku.")]
     public string storageKey = "leaderboardTable";
+    [Tooltip("Zobrazit časy jako 1'05\"123 místo 1:05.123 (pro písma bez dvojtečky).")]
+    public bool racingTimeFormat;
 
     private const int ShownEntries = 5;
     private const int StoredEntries = 20;
@@ -68,7 +70,7 @@ public class Leaderboard : MonoBehaviour
         entryTransform.gameObject.SetActive(true);
 
         SetText(entryTransform, "PositionText", $"{entryTransforms.Count + 1}.");
-        SetText(entryTransform, "TimeText", TimeFormat.Format(entry.seconds));
+        SetText(entryTransform, "TimeText", racingTimeFormat ? TimeFormat.FormatRacing(entry.seconds) : TimeFormat.Format(entry.seconds));
 
         entryTransforms.Add(entryTransform);
     }
@@ -94,6 +96,13 @@ public class Leaderboard : MonoBehaviour
             Refresh();
     }
 
+    /// <summary>Nejlepší uložený čas pro daný klíč (Infinity, pokud žádný není).</summary>
+    public static float BestTime(string key)
+    {
+        LeaderboardList list = Load(key);
+        return list.entries.Count > 0 ? list.entries[0].seconds : Mathf.Infinity;
+    }
+
     /// <summary>Smaže všechny uložené časy. Dá se napojit na tlačítko v inspektoru.</summary>
     public void ResetLeaderboard()
     {
@@ -102,10 +111,12 @@ public class Leaderboard : MonoBehaviour
         Refresh();
     }
 
-    private LeaderboardList Load()
+    private LeaderboardList Load() => Load(storageKey);
+
+    private static LeaderboardList Load(string key)
     {
         LeaderboardList list = null;
-        string json = PlayerPrefs.GetString(storageKey, string.Empty);
+        string json = PlayerPrefs.GetString(key, string.Empty);
         if (!string.IsNullOrEmpty(json))
         {
             try { list = JsonUtility.FromJson<LeaderboardList>(json); }

@@ -169,5 +169,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   baseMaterial: {fileID: 2100000, guid: 507bc611af482c8478bccb3d1dd53733, type: 2}
   uiFont: {fileID: 12800000, guid: 08cc38712abc83d46868eef360cb3aed, type: 3}
-  tmpFont: {fileID: 11400000, guid: 06cf2356254ef844f9a364e54c5b1eb2, type: 2}
+  numberFont: {fileID: 12800000, guid: dc8cdedad2a922446aa584a08e4965d2, type: 3}
+  tmpFont: {fileID: 11400000, guid: 19efb52451132d14d8e81b6fb2048f24, type: 2}
   engineClip: {fileID: 8300000, guid: 18f5693e37250e248a98bd952929fcc3, type: 3}

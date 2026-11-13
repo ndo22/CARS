@@ -13,6 +13,7 @@ public class MainMenu : MonoBehaviour
     /// <summary>Spustí novou procedurální low-poly trať.</summary>
     public void PlayLowPoly()
     {
+        RaceSetup.configured = false; // ukázat výběr tratě a auta
         SceneManager.LoadScene("LowPolyTrack");
     }
 
