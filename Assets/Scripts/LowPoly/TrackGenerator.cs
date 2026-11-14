@@ -242,7 +242,9 @@ public static class TrackGenerator
             Vector3 r0 = t.Right(i), r1 = t.Right(i + 1);
 
             // Asfalt - dva odstíny střídané náhodně pro "plochý" low-poly vzhled
-            Strip(mb, Rand(rng) < 0.5f ? asphaltA : asphaltB, c0, c1, r0, r1, -hw, hw, 0f);
+            // Asfalt ve dlouhých souvislých úsecích (opravovaná místa), ne náhodné pruhy
+            int asphalt = Mathf.PerlinNoise(i * 0.045f, s.seed * 0.01f) > 0.62f ? asphaltB : asphaltA;
+            Strip(mb, asphalt, c0, c1, r0, r1, -hw, hw, 0f);
 
             // Přerušovaná středová čára
             if (i % 3 == 0)
@@ -270,6 +272,19 @@ public static class TrackGenerator
             Strip(vergeMb, verge, c0, c1, r0, r1, -vergeEnd, -edge, -0.03f);
         }
 
+        // Zapečené stínování: okraje silnice a krajnice u svodidel tmavší
+        mb.ShadeVertices(0, v =>
+        {
+            NearestOnTrack(t, v.x, v.z, out float d, out _);
+            float k = 1f - 0.16f * Mathf.SmoothStep(0f, 1f, (d - (hw - 1.8f)) / 2f);
+            return new Color(k, k, k, 1f);
+        });
+        vergeMb.ShadeVertices(0, v =>
+        {
+            NearestOnTrack(t, v.x, v.z, out float d, out _);
+            float k = Mathf.Lerp(1f, 0.72f, Mathf.Clamp01((d - (hw + s.barrierOffset - 2.5f)) / 2.5f)) * (0.95f + Mathf.PerlinNoise(v.x * 0.05f, v.z * 0.05f) * 0.1f);
+            return new Color(k, k, k, 1f);
+        });
         var go = CreateMeshObject("Road", parent, mb.ToMesh("Road"), palette,
             "asphaltA", "asphaltB", "line", "curbA", "curbB");
         go.AddComponent<MeshCollider>().sharedMesh = go.GetComponent<MeshFilter>().sharedMesh;
@@ -315,6 +330,12 @@ public static class TrackGenerator
             }
         }
 
+        mb.ShadeVertices(0, v =>
+        {
+            NearestOnTrack(t, v.x, v.z, out _, out float roadY);
+            float k = Mathf.Lerp(0.62f, 1f, Mathf.Clamp01((v.y - roadY + 0.3f) / 1.4f));
+            return new Color(k, k, k, 1f);
+        });
         var go = CreateMeshObject("Barriers", parent, mb.ToMesh("Barriers"), palette, "barrierA", "barrierB");
         go.AddComponent<MeshCollider>().sharedMesh = go.GetComponent<MeshFilter>().sharedMesh;
     }
@@ -368,6 +389,7 @@ public static class TrackGenerator
         for (int i = 0; i < 4; i++)
             mb.Box(3, beam - Vector3.up * 1.1f - f * 0.32f + r * (-1.2f + i * 0.8f), new Vector3(0.5f, 0.5f, 0.1f), rot);
 
+        mb.ShadeVertical(0, c.y - 0.3f, c.y + 6.5f, 0.7f);
         var go = CreateMeshObject("StartGate", parent, mb.ToMesh("StartGate"), palette,
             "checkerWhite", "checkerBlack", "metal", "startLight", "checkerBlack");
         // Ignore Raycast - aby se při respawnu auto neobjevilo na nosníku brány
@@ -389,7 +411,8 @@ public static class TrackGenerator
     {
         const int seat = 0, roof = 1, metal = 2, tire = 3, tireTop = 4, flagA = 5, flagB = 6;
         const int crowd0 = 7; // 7..10 barvy diváků
-        var mb = new MeshBuilder(11);
+        const int white = 11, signRed = 12;
+        var mb = new MeshBuilder(13);
         int n = t.centers.Length;
         float hw = s.roadWidth * 0.5f;
         float barrier = hw + s.barrierOffset;
@@ -449,8 +472,78 @@ public static class TrackGenerator
             }
         }
 
+        // --- Šipky před zatáčkami (na vnější straně, čelem k přijíždějícímu autu)
+        for (int i = 0; i < n; i++)
+        {
+            if (!isCorner[Mod(i, n)] || isCorner[Mod(i - 1, n)]) continue; // začátek zatáčky
+            int at = i - 5;
+            float turn = Vector3.Cross(t.Forward(i - 2), t.Forward(i + 4)).y;
+            float side = turn > 0f ? -1f : 1f;
+            Vector3 fwd = t.Forward(at), right = t.Right(at);
+            Vector3 basePos = t.Center(at) + right * side * (barrier + 1.3f) + Vector3.down * 0.4f;
+            Quaternion facing = Quaternion.LookRotation(-fwd, Vector3.up);
+            mb.Box(metal, basePos + right * 1.1f + Vector3.up * 0.8f, new Vector3(0.12f, 1.6f, 0.12f), facing);
+            mb.Box(metal, basePos - right * 1.1f + Vector3.up * 0.8f, new Vector3(0.12f, 1.6f, 0.12f), facing);
+            Vector3 board = basePos + Vector3.up * 2.0f;
+            mb.Box(signRed, board, new Vector3(3.4f, 1.1f, 0.1f), facing);
+            // Tři šipky ukazující směr zatáčky (od vnější strany k vnitřní)
+            Vector3 dir = -right * side;
+            Vector3 front = -fwd * 0.07f;
+            for (int k = -1; k <= 1; k++)
+            {
+                Vector3 cc = board + right * (k * 1.0f) + front;
+                mb.TriFacing(white, cc + dir * 0.35f, cc - dir * 0.25f + Vector3.up * 0.42f, cc - dir * 0.25f - Vector3.up * 0.42f, -fwd);
+            }
+        }
+
+        // --- Reklamní poutače na rovinkách a diváci se stany u zatáček
+        int[] boardColors = { flagA, flagB, seat, signRed };
+        for (int i = 18; i < n - 12; i += 22)
+        {
+            bool corner = false;
+            for (int k = -4; k <= 4; k++) corner |= isCorner[Mod(i + k, n)];
+            float side = (i / 22) % 2 == 0 ? 1f : -1f;
+            Vector3 right = t.Right(i), fwd = t.Forward(i);
+            Vector3 basePos = t.Center(i) + right * side * (barrier + 1.6f) + Vector3.down * 0.4f;
+            if (!corner)
+            {
+                // Poutač: barevná deska s bílým pruhem a "logem", čelem k trati
+                Quaternion facing = Quaternion.LookRotation(-right * side, Vector3.up);
+                int color = boardColors[rng.Next(boardColors.Length)];
+                mb.Box(color, basePos + Vector3.up * 1.2f, new Vector3(7f, 1.8f, 0.2f), facing);
+                mb.Box(white, basePos + Vector3.up * 1.2f - right * side * 0.11f + fwd * 1.2f, new Vector3(3.6f, 0.35f, 0.02f), facing);
+                mb.Box(white, basePos + Vector3.up * 1.2f - right * side * 0.11f - fwd * 2.4f, new Vector3(1.2f, 1.2f, 0.02f), facing);
+                mb.Box(metal, basePos + Vector3.up * 0.15f + fwd * 3f, new Vector3(0.15f, 0.6f, 0.15f), facing);
+                mb.Box(metal, basePos + Vector3.up * 0.15f - fwd * 3f, new Vector3(0.15f, 0.6f, 0.15f), facing);
+            }
+            else if (Rand(rng) < 0.6f)
+            {
+                // Skupinka diváků a stan
+                Vector3 spot = basePos + right * side * 4f;
+                Quaternion facing = Quaternion.LookRotation(-right * side, Vector3.up);
+                mb.Box(roof, spot + Vector3.up * 0.1f, new Vector3(9f, 0.2f, 5f), facing);
+                for (int k = 0; k < 12; k++)
+                {
+                    Vector3 pp = spot + fwd * Rand(rng, -4f, 4f) + right * side * Rand(rng, -2f, 2f) + Vector3.up * 0.65f;
+                    mb.Box(crowd0 + rng.Next(4), pp, new Vector3(0.45f, 0.9f, 0.5f), facing);
+                }
+                Vector3 tent = spot + right * side * 4.5f;
+                foreach (Vector3 corner4 in new[] { fwd * 1.6f + right * 1.6f, fwd * 1.6f - right * 1.6f, -fwd * 1.6f + right * 1.6f, -fwd * 1.6f - right * 1.6f })
+                    mb.Box(metal, tent + corner4 + Vector3.up * 1.1f, new Vector3(0.1f, 2.2f, 0.1f), facing);
+                mb.Cylinder(boardColors[rng.Next(boardColors.Length)], tent + Vector3.up * 2.2f, 2.6f, 0f, 1.4f, 4, Mathf.PI * 0.25f + Mathf.Atan2(fwd.x, fwd.z));
+            }
+        }
+
+        // Stínování: u země tmavší
+        mb.ShadeVertices(0, v =>
+        {
+            NearestOnTrack(t, v.x, v.z, out _, out float roadY);
+            float k = Mathf.Lerp(0.62f, 1f, Mathf.Clamp01((v.y - roadY + 0.4f) / 3.5f));
+            return new Color(k, k, k, 1f);
+        });
+
         CreateMeshObject("Trackside", parent, mb.ToMesh("Trackside"), palette,
-            "seat", "roof", "metal", "tire", "curbB", "flagA", "flagB", "crowdA", "crowdB", "crowdC", "crowdD");
+            "seat", "roof", "metal", "tire", "curbB", "flagA", "flagB", "crowdA", "crowdB", "crowdC", "crowdD", "line", "curbA");
     }
 
     // ---------------------------------------------------------------- checkpointy
@@ -584,6 +677,15 @@ public static class TrackGenerator
                 TerrainTri(terrain, a, b, c, ctx, rng);
                 TerrainTri(terrain, a, c, d, ctx, rng);
             }
+        // Výšky: údolí tmavší (na sněhu do modra), kopce světlejší; plus jemný šum, ať plochy nejsou mrtvé
+        bool snowy = theme.scenery == TrackTheme.Scenery.Snow;
+        terrain.ShadeFaces(0, m =>
+        {
+            float h = Mathf.Clamp01((m.y - ctx.baseY + 8f) / 45f);
+            float k = Mathf.Lerp(0.86f, 1.06f, h) * (0.96f + Mathf.PerlinNoise(m.x * 0.03f, m.z * 0.03f) * 0.08f);
+            if (snowy) return new Color(k * Mathf.Lerp(0.86f, 1f, h), k * Mathf.Lerp(0.91f, 1f, h), k, 1f);
+            return new Color(k, k, k, 1f);
+        });
         var terrainGo = CreateMeshObject("Terrain", parent, terrain.ToMesh("Terrain"), palette,
             "groundA", "groundB", "groundC", "high", "peak", "low");
         terrainGo.AddComponent<MeshCollider>().sharedMesh = terrainGo.GetComponent<MeshFilter>().sharedMesh;
@@ -622,12 +724,21 @@ public static class TrackGenerator
         for (int i = 0; i < s.cloudCount; i++)
         {
             Vector3 c = new Vector3(Rand(rng, ctx.min.x, ctx.max.x), Rand(rng, 90f, 140f) + ctx.baseY, Rand(rng, ctx.min.z, ctx.max.z));
-            int puffs = rng.Next(3, 6);
+            int start = clouds.VertexCount;
+            // Oblý mrak z několika zploštělých koulí: velká uprostřed, menší po stranách
+            int puffs = rng.Next(4, 8);
+            float length = Rand(rng, 30f, 60f);
             for (int p = 0; p < puffs; p++)
             {
-                Vector3 offset = new Vector3(p * 9f - puffs * 4.5f, (Rand(rng) - 0.5f) * 4f, (Rand(rng) - 0.5f) * 8f);
-                clouds.Rock(0, c + offset, Rand(rng, 10f, 18f), rng);
+                float u = puffs == 1 ? 0.5f : p / (float)(puffs - 1);
+                float r = Mathf.Lerp(5f, 11f, Mathf.Sin(u * Mathf.PI)) * Rand(rng, 0.8f, 1.2f);
+                Vector3 offset = new Vector3((u - 0.5f) * length, r * 0.25f, (Rand(rng) - 0.5f) * 10f);
+                int ballStart = clouds.VertexCount;
+                clouds.Ball(0, c + offset, r, 5, 10);
+                // Zploštit spodek
+                FlattenBottom(clouds, ballStart, c.y - 1f);
             }
+            clouds.ShadeVertical(start, c.y - 2f, c.y + 10f, 0.82f);
         }
         var cloudGo = CreateMeshObject("Clouds", parent, clouds.ToMesh("Clouds"), palette, "cloud");
         cloudGo.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
@@ -649,7 +760,13 @@ public static class TrackGenerator
             Vector3 mid = (a + b + c) / 3f;
             sub = Mathf.PerlinNoise(mid.x * 0.004f + 7f, mid.z * 0.004f + 3f) > 0.7f ? 2 : rng.Next(2);
         }
-        else sub = rng.Next(3);                                              // tři odstíny trávy / písku
+        else
+        {
+            // Souvislé plochy tří odstínů podle šumu (louky, paseky) místo náhodných trojúhelníků
+            Vector3 m = (a + b + c) / 3f;
+            float n = Mathf.PerlinNoise(m.x * 0.011f + ctx.noiseOffset, m.z * 0.011f - ctx.noiseOffset);
+            sub = n < 0.42f ? 1 : n < 0.6f ? 0 : 2;
+        }
         mb.TriFacing(sub, a, b, c, Vector3.up);
     }
 
@@ -679,6 +796,7 @@ public static class TrackGenerator
 
             p.y -= 0.4f;
             float size = Rand(rng, 0.8f, 1.6f);
+            int treeStart = mb.VertexCount;
             switch (style)
             {
                 case TrackTheme.Scenery.Desert:
@@ -703,6 +821,7 @@ public static class TrackGenerator
                     else HayBale(mb, p, rng);
                     break;
             }
+            ShadeTree(mb, treeStart, p.y, size * 6.5f, rng);
             placed++;
         }
 
@@ -710,7 +829,9 @@ public static class TrackGenerator
         {
             if (!RandomSpot(ctx, rng, ctx.flatZone, 30f, out Vector3 p)) continue;
             float size = Rand(rng, 1f, 4.5f);
+            int rockStart = mb.VertexCount;
             mb.Rock(ScRock, p + Vector3.up * size * 0.1f, size, rng);
+            mb.ShadeVertical(rockStart, p.y - size * 0.3f, p.y + size * 0.6f, 0.7f);
             i++;
         }
 
@@ -751,7 +872,10 @@ public static class TrackGenerator
                 {
                     float radius = Rand(rng, 18f, 40f);
                     if (!RandomSpot(ctx, rng, ctx.flatZone + radius + 12f, 60f, out Vector3 p)) continue;
-                    Mesa(mb, p - Vector3.up * 3f, radius, Rand(rng, 28f, 62f), rng);
+                    int start = mb.VertexCount;
+                    float mesaH = Rand(rng, 28f, 62f);
+                    Mesa(mb, p - Vector3.up * 3f, radius, mesaH, rng);
+                    mb.ShadeVertical(start, p.y - 3f, p.y + mesaH, 0.62f);
                     i++;
                 }
                 break;
@@ -760,7 +884,9 @@ public static class TrackGenerator
                 for (int i = 0, tries = 0; i < 4 && tries < 800; tries++)
                 {
                     if (!RandomSpot(ctx, rng, ctx.flatZone + 25f, 80f, out Vector3 p) || ctx.Distance(p.x, p.z) > 160f) continue;
+                    int start = mb.VertexCount;
                     Windmill(mb, parent, p, ctx, palette, rng);
+                    mb.ShadeVertical(start, p.y - 0.5f, p.y + 17f, 0.7f);
                     i++;
                 }
                 break;
@@ -772,7 +898,9 @@ public static class TrackGenerator
                     float x = Rand(rng, ctx.trackMaxX + 10f, ctx.trackMaxX + 90f), z = Rand(rng, ctx.min.z + 150f, ctx.max.z - 150f);
                     float h = ctx.Height(x, z);
                     if (h < ctx.waterLevel + 0.6f || h > ctx.waterLevel + 4f || ctx.Distance(x, z) < ctx.flatZone + 10f) continue;
+                    int start = mb.VertexCount;
                     Lighthouse(mb, parent, new Vector3(x, h - 0.5f, z), palette);
+                    mb.ShadeVertical(start, h - 2f, h + 24f, 0.72f);
                     break;
                 }
                 break;
@@ -786,7 +914,9 @@ public static class TrackGenerator
                 for (int i = 0, tries = 0; i < 5 && tries < 800; tries++)
                 {
                     if (!RandomSpot(ctx, rng, ctx.flatZone + 12f, 80f, out Vector3 p) || ctx.Distance(p.x, p.z) > 90f) continue;
+                    int start = mb.VertexCount;
                     Cabin(mb, p, rng);
+                    mb.ShadeVertical(start, p.y, p.y + 6f, 0.68f);
                     i++;
                 }
                 break;
@@ -796,6 +926,20 @@ public static class TrackGenerator
     }
 
     // ---------------------------------------------------------------- dekorace
+
+    /// <summary>Strom: dole tmavší (stín u kmene), nahoře světlejší koruna, každý strom trochu jinak barevný.</summary>
+    private static void ShadeTree(MeshBuilder mb, int start, float baseY, float height, System.Random rng)
+    {
+        mb.ShadeVertical(start, baseY, baseY + height, 0.6f);
+        Color tint = new Color(Rand(rng, 0.9f, 1.08f), Rand(rng, 0.92f, 1.08f), Rand(rng, 0.9f, 1.02f), 1f);
+        mb.ShadeVertices(start, v => tint);
+    }
+
+    /// <summary>Srazí vrcholy pod danou výškou na tu výšku (plochý spodek mraku).</summary>
+    private static void FlattenBottom(MeshBuilder mb, int start, float y)
+    {
+        mb.MoveVertices(start, v => v.y < y ? new Vector3(v.x, y, v.z) : v);
+    }
 
     private static void Pine(MeshBuilder mb, Vector3 p, float size, System.Random rng)
     {
@@ -1062,10 +1206,13 @@ public static class TrackGenerator
     private static void Building(MeshBuilder mb, Vector3 b, float w, float d, float h, int bodySub, System.Random rng,
         int windowA, int windowB, int windowC, int neonA, int neonB, int roof)
     {
+        int bodyStart = mb.VertexCount;
         mb.Box(bodySub, b + Vector3.up * (h * 0.5f), new Vector3(w, h, d));
         mb.Box(roof, b + Vector3.up * (h + 0.3f), new Vector3(w - 1f, 0.6f, d - 1f));
         if (Rand(rng) < 0.6f) mb.Box(roof, b + new Vector3(Rand(rng, -w * 0.3f, w * 0.3f), h + 1.5f, Rand(rng, -d * 0.3f, d * 0.3f)), new Vector3(3f, 2f, 3f));
 
+        // Budova dole tmavší (stín ulice), okna se stínují zvlášť (svítí)
+        mb.ShadeVertical(bodyStart, b.y, b.y + Mathf.Min(h, 30f), 0.6f);
         int windowSub = Rand(rng) < 0.6f ? windowA : (Rand(rng) < 0.5f ? windowB : windowC);
         const float floor = 3.6f, spacing = 3.2f;
         float lit = Rand(rng, 0.35f, 0.75f);

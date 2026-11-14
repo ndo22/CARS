@@ -25,6 +25,8 @@ public partial class LowPolyRaceBootstrap : MonoBehaviour
     public Shader foliageShader;
     public Shader ghostShader;
     public Shader postFxShader;
+    [Tooltip("Shader s barvami ve vrcholech (zapečené stínování). Když nejde, použije se Standard.")]
+    public Shader vertexColorShader;
 
     public static readonly Color[] CarColors =
     {
@@ -221,6 +223,8 @@ public partial class LowPolyRaceBootstrap : MonoBehaviour
         Material m;
         if (shader != null && shader.isSupported)
             m = new Material(shader);
+        else if (vertexColorShader != null && vertexColorShader.isSupported)
+            m = new Material(vertexColorShader); // barvy vrcholů = zapečené stínování a přechody
         else
             m = baseMaterial != null ? new Material(baseMaterial) : new Material(Shader.Find("Standard"));
         if (m.HasProperty("_MainTex")) m.mainTexture = null;
@@ -256,6 +260,8 @@ public partial class LowPolyRaceBootstrap : MonoBehaviour
                 case "neonA": return owner.Mat(key, new Color(0.1f, 0.4f, 0.45f), 0.6f, new Color(0.2f, 1f, 1f) * 2f);
                 case "neonB": return owner.Mat(key, new Color(0.45f, 0.1f, 0.35f), 0.6f, new Color(1f, 0.2f, 0.8f) * 2f);
                 case "roof": return owner.Mat(key, new Color(0.25f, 0.26f, 0.3f), 0.1f);
+                // Mraky: jemná vlastní záře, ať nejsou ze spodu šedé jako kameny
+                case "cloud": return owner.Mat(key, t[key], 0f, t[key] * (t.night ? 0.08f : 0.45f));
                 case "boost": return owner.Mat(key, new Color(0.1f, 0.5f, 0.6f), 0.5f, new Color(0.2f, 0.9f, 1f) * 2f);
                 case "water": return owner.WaterMat(key, t["water"]);
                 case "waterB": return owner.WaterMat(key, Color.Lerp(t["water"], Color.white, 0.12f));
@@ -285,7 +291,7 @@ public partial class LowPolyRaceBootstrap : MonoBehaviour
         return new LowPolyCarFactory.Palette
         {
             paint = Mat("paint" + paint, paint, chrome ? 0.92f : 0.6f),
-            glass = Mat("glass", new Color(0.12f, 0.16f, 0.22f), 0.85f),
+            glass = Mat("glass", new Color(0.16f, 0.24f, 0.34f), 0.93f),
             dark = Mat("carDark", new Color(0.12f, 0.12f, 0.13f)),
             headlight = Mat("headlight", new Color(1f, 0.97f, 0.85f), 0.5f, new Color(0.9f, 0.85f, 0.6f) * (theme.night ? 2f : 1f)),
             taillight = Mat("taillight", new Color(0.8f, 0.05f, 0.05f), 0.5f, new Color(0.6f, 0f, 0f) * (theme.night ? 2f : 1f)),

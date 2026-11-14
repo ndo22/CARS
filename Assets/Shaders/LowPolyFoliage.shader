@@ -19,7 +19,7 @@ Shader "LowPoly/Foliage"
         half _Glossiness;
         float _Sway, _SwaySpeed;
 
-        struct Input { float3 worldPos; };
+        struct Input { float3 worldPos; float4 color : COLOR; };
 
         void vert (inout appdata_full v)
         {
@@ -32,7 +32,7 @@ Shader "LowPoly/Foliage"
 
         void surf (Input IN, inout SurfaceOutputStandard o)
         {
-            o.Albedo = _Color.rgb;
+            o.Albedo = _Color.rgb * IN.color.rgb;
             o.Metallic = 0;
             o.Smoothness = _Glossiness;
         }

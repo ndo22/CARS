@@ -51,7 +51,7 @@ public struct Quaternion { public float x,y,z,w; public Quaternion(float x,float
 }
 public struct Color { public float r,g,b,a; public Color(float r,float g,float b,float a=1){this.r=r;this.g=g;this.b=b;this.a=a;} public static Color magenta=>new Color(1,0,1); public static Color white=>new Color(1,1,1);
  public static Color Lerp(Color a,Color b,float t){t=Mathf.Clamp01(t);return new Color(a.r+(b.r-a.r)*t,a.g+(b.g-a.g)*t,a.b+(b.b-a.b)*t,a.a+(b.a-a.a)*t);}
- public static Color operator*(Color a,float f)=>new Color(a.r*f,a.g*f,a.b*f,a.a*f); }
+ public static Color operator*(Color a,float f)=>new Color(a.r*f,a.g*f,a.b*f,a.a*f); public static Color operator*(Color a,Color b)=>new Color(a.r*b.r,a.g*b.g,a.b*b.b,a.a*b.a); }
 public enum ForceMode { Force, Acceleration, VelocityChange, Impulse }
 public struct ContactPoint { public Vector3 point, normal; }
 public enum Space { World, Self }
@@ -83,7 +83,7 @@ public class Object { public string name; }
 public class Material : Object { public Material(string n){name=n;} }
 public class Mesh : Object { public Rendering.IndexFormat indexFormat; public List<Vector3> v; public List<int>[] t; public int subMeshCount{get=>t.Length;set=>t=new List<int>[value];}
  public Vector3[] vertices { get => v.ToArray(); set => v = new List<Vector3>(value); } public int[] GetTriangles(int i) => t[i].ToArray();
- public void SetVertices(List<Vector3> a){v=new List<Vector3>(a);} public void SetTriangles(List<int> a,int i){t[i]=new List<int>(a);} public void RecalculateNormals(){} public void RecalculateBounds(){} }
+ public void SetVertices(List<Vector3> a){v=new List<Vector3>(a);} public List<Color> col; public void SetColors(List<Color> c){col=new List<Color>(c);} public Color[] colors => col.ToArray(); public void SetTriangles(List<int> a,int i){t[i]=new List<int>(a);} public void RecalculateNormals(){} public void RecalculateBounds(){} }
 public class Component : Object { public GameObject gameObject; public Transform transform=>gameObject.transform; public T GetComponent<T>() where T:Component=>gameObject.GetComponent<T>(); public T[] GetComponentsInChildren<T>(bool all=false) where T:Component=>new T[0]; }
 public class Behaviour : Component { public bool enabled=true; }
 public class MonoBehaviour : Behaviour {}

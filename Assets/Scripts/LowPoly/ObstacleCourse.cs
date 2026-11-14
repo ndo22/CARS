@@ -357,6 +357,16 @@ public static class ObstacleCourse
             if (i == 0 || !p.solid[i - 1]) mb.QuadFacing(SubSide, l0, q0, q0 + down, l0 + down, -fwd);
             if (i + 2 >= p.Count || !p.solid[i + 2]) mb.QuadFacing(SubSide, l1, q1, q1 + down, l1 + down, fwd);
         }
+        // Stínování: boky a spodek desky tmavší, silnice u krajů trochu tmavší
+        mb.ShadeVertices(0, v =>
+        {
+            int i = NearestBrute(p, v);
+            float below = p.points[i].y - v.y;
+            float k = below > 0.05f ? Mathf.Lerp(0.85f, 0.55f, Mathf.Clamp01(below / 1.1f)) : 1f;
+            float lateral = Mathf.Abs(Vector3.Dot(v - p.points[i], p.Right(i)));
+            k *= 1f - 0.14f * Mathf.Clamp01((lateral - (p.widths[i] * 0.5f - 1.6f)) / 1.6f);
+            return new Color(k, k, k, 1f);
+        });
         var go = Create("CourseRoad", parent, mb.ToMesh("CourseRoad"), palette,
             "asphaltA", "asphaltB", "line", "rock", "accentC", "checkerBlack", "curbA", "curbB");
         go.AddComponent<MeshCollider>().sharedMesh = go.GetComponent<MeshFilter>().sharedMesh;
@@ -396,6 +406,16 @@ public static class ObstacleCourse
                 }
             }
         }
+        walls.ShadeVertices(0, v =>
+        {
+            float k = Mathf.Lerp(0.65f, 1f, Mathf.Clamp01((v.y - p.points[NearestBrute(p, v)].y) / 0.9f));
+            return new Color(k, k, k, 1f);
+        });
+        pillars.ShadeVertices(0, v =>
+        {
+            float k = Mathf.Lerp(0.5f, 0.95f, Mathf.Clamp01(1f - (p.points[NearestBrute(p, v)].y - v.y) / BaseHeight));
+            return new Color(k, k, k, 1f);
+        });
         var wallGo = Create("CourseBarriers", parent, walls.ToMesh("CourseBarriers"), palette, "barrierA", "barrierB");
         wallGo.AddComponent<MeshCollider>().sharedMesh = wallGo.GetComponent<MeshFilter>().sharedMesh;
         Create("CoursePillars", parent, pillars.ToMesh("CoursePillars"), palette, "metal");
@@ -556,6 +576,20 @@ public static class ObstacleCourse
                     break;
             }
         }
+    }
+
+    /// <summary>Nejbližší bod dráhy (vodorovně) - pro stínování při stavbě.</summary>
+    private static int NearestBrute(Plan p, Vector3 v)
+    {
+        int best = 0;
+        float bestD = float.MaxValue;
+        for (int i = 0; i < p.Count; i++)
+        {
+            float dx = p.points[i].x - v.x, dz = p.points[i].z - v.z;
+            float d = dx * dx + dz * dz;
+            if (d < bestD) { bestD = d; best = i; }
+        }
+        return best;
     }
 
     private static GameObject Create(string name, Transform parent, Mesh mesh, TrackGenerator.IPalette palette, params string[] keys)

@@ -1,7 +1,7 @@
 namespace UnityEngine.UI {
   public class Graphic : UnityEngine.MonoBehaviour { public UnityEngine.Color color; public bool raycastTarget; public UnityEngine.Canvas canvas => null; public UnityEngine.RectTransform rectTransform => null; }
   public class Text : Graphic { public string text; public UnityEngine.Font font; public int fontSize; public UnityEngine.FontStyle fontStyle; public UnityEngine.TextAnchor alignment; public UnityEngine.HorizontalWrapMode horizontalOverflow; public UnityEngine.VerticalWrapMode verticalOverflow; }
-  public class Image : Graphic {}
+  public class Image : Graphic { public enum Type { Simple, Sliced } public Sprite sprite; public Type type; }
   public class RawImage : Graphic { public UnityEngine.Texture texture; }
   public class Shadow : UnityEngine.MonoBehaviour { public UnityEngine.Color effectColor; public UnityEngine.Vector2 effectDistance; }
   public class Outline : Shadow {}
@@ -20,6 +20,11 @@ namespace TMPro {
 namespace UnityEngine.EventSystems {
   public enum EventTriggerType { PointerDown, PointerUp, PointerExit }
   public class BaseEventData {}
+  public class PointerEventData : BaseEventData {}
+  public interface IPointerEnterHandler { void OnPointerEnter(PointerEventData e); }
+  public interface IPointerExitHandler { void OnPointerExit(PointerEventData e); }
+  public interface ISelectHandler { void OnSelect(BaseEventData e); }
+  public interface IDeselectHandler { void OnDeselect(BaseEventData e); }
   public class EventTrigger : UnityEngine.MonoBehaviour {
     public class TriggerEvent : UnityEngine.Events.UnityEvent<BaseEventData> {}
     public class Entry { public EventTriggerType eventID; public TriggerEvent callback = new TriggerEvent(); }

@@ -60,6 +60,18 @@ Hra startuje scénou `LowPolyTrack` – titulní menu: **QUICK RACE**, **CHAMPIO
 - **Procedurální hudba a zvuky** (generované kódem, bez licencí).
 - Náhled tratě v editoru: menu **CARS → Low Poly → Preview …** (do scény se neukládá).
 
+### Grafika
+
+- **Shader `LowPoly/VertexColor`**: barvy ve vrcholech nesou zapečené stínování (tmavší spodky aut, svodidel,
+  budov a kmenů, okraje silnice), plynulé přechody terénu a odstíny stromů. Když shader nejde, hra použije
+  Standard a vypadá jako dřív.
+- Terén v souvislých plochách podle šumu a výšky (na sněhu namodralé stíny), asfalt bez náhodných pruhů.
+- Oblé mraky s jemnou vlastní září, rozmanitější stromy.
+- U trati šipky před zatáčkami, reklamní poutače a diváci se stany.
+- Zaoblené panely a tlačítka v UI, stín a zvětšení tlačítka při najetí.
+
+![Grafika](Docs/graphics-update.png)
+
 ### Režim POLICE CHASE
 
 Druhý herní režim (titulní menu → POLICE CHASE): **překážková dráha ze startu do cíle**, vyvýšená nad krajinou

@@ -10,6 +10,13 @@ using UnityEngine.Rendering;
 public class MeshBuilder
 {
     private readonly List<Vector3> vertices = new List<Vector3>();
+    private readonly List<Color> colors = new List<Color>();
+
+    /// <summary>
+    /// Barva vrcholů pro nově přidané trojúhelníky. Shader LowPoly/VertexColor jí násobí barvu materiálu
+    /// (stínování v rozích, přechody, tónování). Obyčejný Standard shader ji ignoruje.
+    /// </summary>
+    public Color Tint = Color.white;
     private readonly List<int>[] triangles;
 
     public MeshBuilder(int submeshCount = 1)
@@ -28,6 +35,9 @@ public class MeshBuilder
         vertices.Add(a);
         vertices.Add(b);
         vertices.Add(c);
+        colors.Add(Tint);
+        colors.Add(Tint);
+        colors.Add(Tint);
         triangles[sub].Add(i);
         triangles[sub].Add(i + 1);
         triangles[sub].Add(i + 2);
@@ -184,12 +194,51 @@ public class MeshBuilder
         Tri(sub, a, c, b);
     }
 
+    /// <summary>Vynásobí barvu každého vrcholu od indexu <paramref name="start"/> funkcí jeho polohy (např. tmavší dole).</summary>
+    public void ShadeVertices(int start, System.Func<Vector3, Color> shade)
+    {
+        for (int i = start; i < vertices.Count; i++)
+            colors[i] *= shade(vertices[i]);
+    }
+
+    /// <summary>Vynásobí barvu celých trojúhelníků (plošek) podle jejich středu - zachová ploché low-poly stínování.</summary>
+    public void ShadeFaces(int start, System.Func<Vector3, Color> shade)
+    {
+        start -= start % 3;
+        for (int i = start; i + 2 < vertices.Count; i += 3)
+        {
+            Color c = shade((vertices[i] + vertices[i + 1] + vertices[i + 2]) / 3f);
+            colors[i] *= c;
+            colors[i + 1] *= c;
+            colors[i + 2] *= c;
+        }
+    }
+
+    /// <summary>Posune vrcholy od indexu <paramref name="start"/> (např. zploštění mraku).</summary>
+    public void MoveVertices(int start, System.Func<Vector3, Vector3> move)
+    {
+        for (int i = start; i < vertices.Count; i++)
+            vertices[i] = move(vertices[i]);
+    }
+
+    /// <summary>Svislý přechod: dole tmavší (jako zastínění u země), nahoře plná barva.</summary>
+    public void ShadeVertical(int start, float bottomY, float topY, float darkest)
+    {
+        float range = Mathf.Max(0.01f, topY - bottomY);
+        ShadeVertices(start, p =>
+        {
+            float k = Mathf.Lerp(darkest, 1f, Mathf.Clamp01((p.y - bottomY) / range));
+            return new Color(k, k, k, 1f);
+        });
+    }
+
     public Mesh ToMesh(string name)
     {
         var mesh = new Mesh { name = name };
         if (vertices.Count > 65000)
             mesh.indexFormat = IndexFormat.UInt32;
         mesh.SetVertices(vertices);
+        mesh.SetColors(colors);
         mesh.subMeshCount = triangles.Length;
         for (int i = 0; i < triangles.Length; i++)
             mesh.SetTriangles(triangles[i], i);

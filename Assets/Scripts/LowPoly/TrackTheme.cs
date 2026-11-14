@@ -196,14 +196,15 @@ public class TrackTheme
             .Set("asphaltA", 0x3D4049).Set("asphaltB", 0x434650)
             .Set("curbA", 0x2E6FD9).Set("barrierA", 0x2E6FD9)
             .Set("vergeA", 0xE6EDF5).Set("vergeB", 0xDEE6F0)
-            .Set("groundA", 0xEDF2FA).Set("groundB", 0xE0E8F2).Set("groundC", 0xF5F7FC)
+            .Set("groundA", 0xE6EDF7).Set("groundB", 0xD5E0EE).Set("groundC", 0xF2F5FB)
             .Set("high", 0x7A808C).Set("peak", 0xFFFFFF)
             .Set("leafA", 0x1F5C40).Set("leafB", 0x2B6B4A).Set("leafC", 0xF5F7FC)
             .Set("accentA", 0xFFFFFF).Set("accentB", 0xE6731F).Set("accentC", 0x262626)
             .Set("seat", 0xD9261E).Set("flagA", 0x2E6FD9).Set("flagB", 0xFFFFFF).Set("cloud", 0xE6EBF2);
         t.name = "Snow";
         t.scenery = Scenery.Snow;
-        t.sky = C(0xC7D6E6);
+        t.sky = C(0xA9C3E0);
+        t.skyTop = C(0x5E86BD);
         t.fogStart = 150f; t.fogEnd = 700f;
         t.sun = C(0xFFF5EB);
         t.sunIntensity = 1.0f;

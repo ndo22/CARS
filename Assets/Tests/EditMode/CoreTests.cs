@@ -151,6 +151,26 @@ public class MeshBuilderTests
     }
 }
 
+public class ShadingTests
+{
+    [Test]
+    public void VerticalShadingDarkensTheBottom()
+    {
+        var mb = new MeshBuilder(1);
+        mb.Box(0, Vector3.up * 1f, new Vector3(1f, 2f, 1f), Quaternion.identity);
+        mb.ShadeVertical(0, 0f, 2f, 0.5f);
+        Mesh mesh = mb.ToMesh("Shaded");
+        Vector3[] v = mesh.vertices;
+        Color[] c = mesh.colors;
+        Assert.AreEqual(v.Length, c.Length);
+        for (int i = 0; i < v.Length; i++)
+        {
+            float expected = Mathf.Lerp(0.5f, 1f, v[i].y / 2f);
+            Assert.AreEqual(expected, c[i].r, 0.001f, "vertex " + i);
+        }
+    }
+}
+
 public class GhostTests
 {
     [Test]

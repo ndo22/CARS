@@ -200,6 +200,9 @@ public static class LowPolyCarFactory
         var bodyGo = new GameObject("Body");
         bodyGo.layer = layer;
         bodyGo.transform.SetParent(root, false);
+        // Zapečené stínování karoserie: spodek a prahy tmavší, střecha plná barva
+        float topY = shape.cabin != null ? shape.cabin[1].top : shape.body[shape.body.Length / 2].top + 0.3f;
+        mb.ShadeVertical(0, shape.body[0].bottom - 0.05f, topY, 0.62f);
         bodyGo.AddComponent<MeshFilter>().sharedMesh = mb.ToMesh("CarBody");
         bodyGo.AddComponent<MeshRenderer>().sharedMaterials = new[]
         {
@@ -816,8 +819,9 @@ public static class LowPolyCarFactory
         float r = shape.wheelRadius, w = shape.wheelWidth;
         mb.Wheel(0, 0, Vector3.zero, r, w, 10);
         mb.Wheel(1, 1, Vector3.zero, r * 0.55f, w + 0.03f, 6);
-        mb.Box(1, Vector3.zero, new Vector3(w + 0.04f, r * 1.35f, 0.08f));
-        mb.Box(1, Vector3.zero, new Vector3(w + 0.04f, 0.08f, r * 1.35f));
+        // Jemnější paprsky disku (5 tenkých místo výrazného kříže)
+        for (int k = 0; k < 5; k++)
+            mb.Box(1, Vector3.zero, new Vector3(w + 0.035f, r * 1.12f, 0.05f), Quaternion.Euler(k * 36f, 0f, 0f));
         Mesh mesh = mb.ToMesh("Wheel");
         wheelMeshes[key] = mesh;
         return mesh;

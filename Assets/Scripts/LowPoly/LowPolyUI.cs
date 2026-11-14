@@ -48,11 +48,40 @@ public static class LowPolyUI
         return canvas;
     }
 
+    private static Sprite rounded;
+
+    /// <summary>Bílý čtverec se zaoblenými rohy (9-slice) - vytvoří se jednou kódem, žádný soubor není potřeba.</summary>
+    public static Sprite RoundedSprite
+    {
+        get
+        {
+            if (rounded != null) return rounded;
+            const int size = 32, radius = 10;
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+            var px = new Color32[size * size];
+            for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                {
+                    // Vzdálenost od nejbližšího středu rohového oblouku
+                    float cx = Mathf.Clamp(x + 0.5f, radius, size - radius), cy = Mathf.Clamp(y + 0.5f, radius, size - radius);
+                    float d = Vector2.Distance(new Vector2(x + 0.5f, y + 0.5f), new Vector2(cx, cy));
+                    float a = Mathf.Clamp01(radius - d + 0.5f);
+                    px[y * size + x] = new Color32(255, 255, 255, (byte)(a * 255));
+                }
+            tex.SetPixels32(px);
+            tex.Apply();
+            rounded = Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect, new Vector4(radius, radius, radius, radius));
+            return rounded;
+        }
+    }
+
     public static RectTransform Panel(Transform parent, string name, Color color)
     {
         var go = new GameObject(name, typeof(RectTransform));
         go.transform.SetParent(parent, false);
         var image = go.AddComponent<Image>();
+        image.sprite = RoundedSprite;
+        image.type = Image.Type.Sliced;
         image.color = color;
         image.raycastTarget = color.a > 0.3f;
         return (RectTransform)go.transform;
@@ -94,6 +123,10 @@ public static class LowPolyUI
         colors.pressedColor = new Color(1f, 0.7f, 0.3f, 1f);
         button.colors = colors;
         button.targetGraphic = image;
+        rect.gameObject.AddComponent<UIHover>();
+        var shadow = rect.gameObject.AddComponent<Shadow>();
+        shadow.effectColor = new Color(0f, 0f, 0f, 0.35f);
+        shadow.effectDistance = new Vector2(0f, -4f);
         button.onClick.AddListener(() =>
         {
             if (AudioManager.instance != null) AudioManager.instance.Play("Click");
@@ -170,5 +203,31 @@ public static class LowPolyUI
                 outlines[i].enabled = on;
             }
         }
+    }
+}
+
+/// <summary>Tlačítko se při najetí myší (nebo výběru gamepadem) mírně zvětší.</summary>
+public class UIHover : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler, ISelectHandler, IDeselectHandler
+{
+    public float scale = 1.05f;
+    private bool over;
+
+    public void OnPointerEnter(PointerEventData e) => over = true;
+    public void OnPointerExit(PointerEventData e) => over = false;
+    public void OnSelect(BaseEventData e) => over = true;
+    public void OnDeselect(BaseEventData e) => over = false;
+
+    private void OnDisable()
+    {
+        over = false;
+        transform.localScale = Vector3.one;
+    }
+
+    private void Update()
+    {
+        float target = over ? scale : 1f;
+        float current = transform.localScale.x;
+        if (Mathf.Abs(current - target) > 0.001f)
+            transform.localScale = Vector3.one * Mathf.MoveTowards(current, target, Time.unscaledDeltaTime * 0.8f);
     }
 }
