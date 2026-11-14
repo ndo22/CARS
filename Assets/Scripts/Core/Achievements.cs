@@ -28,6 +28,10 @@ public static class Achievements
         new Definition("ghostbuster", "GHOSTBUSTER", "BEAT YOUR GHOST IN TIME TRIAL"),
         new Definition("world_tour", "WORLD TOUR", "RACE ON EVERY TRACK"),
         new Definition("architect", "ARCHITECT", "SAVE A TRACK IN THE EDITOR"),
+        new Definition("getaway", "GETAWAY", "ESCAPE THE POLICE IN 5 CHASE LEVELS", "MONSTER TRUCK"),
+        new Definition("most_wanted", "MOST WANTED", "FINISH 10 CHASE LEVELS", "POLICE CAR"),
+        new Definition("legend", "LEGEND", "FINISH ALL 15 CHASE LEVELS", "ROCKET CAR"),
+        new Definition("high_flyer", "HIGH FLYER", "JUMP OVER 30 METERS"),
     };
 
     /// <summary>Vyvolá se při odemčení (pro oznámení ve hře).</summary>

@@ -52,7 +52,7 @@ public struct Quaternion { public float x,y,z,w; public Quaternion(float x,float
 public struct Color { public float r,g,b,a; public Color(float r,float g,float b,float a=1){this.r=r;this.g=g;this.b=b;this.a=a;} public static Color magenta=>new Color(1,0,1); public static Color white=>new Color(1,1,1);
  public static Color Lerp(Color a,Color b,float t){t=Mathf.Clamp01(t);return new Color(a.r+(b.r-a.r)*t,a.g+(b.g-a.g)*t,a.b+(b.b-a.b)*t,a.a+(b.a-a.a)*t);}
  public static Color operator*(Color a,float f)=>new Color(a.r*f,a.g*f,a.b*f,a.a*f); }
-public enum ForceMode { Force, Acceleration }
+public enum ForceMode { Force, Acceleration, VelocityChange, Impulse }
 public struct ContactPoint { public Vector3 point, normal; }
 public enum Space { World, Self }
 public static class Time { public static float deltaTime=0, fixedDeltaTime=0.02f, time=0, unscaledDeltaTime=0, unscaledTime=0; public static int frameCount=0; }
@@ -61,7 +61,7 @@ public struct RaycastHit { public Vector3 point, normal; }
 public static class Physics { public const int DefaultRaycastLayers = -5; public static bool Raycast(Vector3 o, Vector3 d, out RaycastHit h, float m, int mask, QueryTriggerInteraction q){ h=new RaycastHit(); return false; } }
 public class Camera : Behaviour { public static Camera main => null; }
 public static class Mathf {
- public const float PI=(float)Math.PI; public const float Infinity=float.PositiveInfinity; public const float Rad2Deg=57.29578f;
+ public const float PI=(float)Math.PI; public const float Deg2Rad=PI/180f; public const float Infinity=float.PositiveInfinity; public const float Rad2Deg=57.29578f;
  public static float Max(float a,float b)=>Math.Max(a,b); public static int Max(int a,int b)=>Math.Max(a,b);
  public static float Min(float a,float b)=>Math.Min(a,b); public static int Min(int a,int b)=>Math.Min(a,b);
  public static float Clamp(float v,float a,float b)=>v<a?a:v>b?b:v; public static int Clamp(int v,int a,int b)=>v<a?a:v>b?b:v; public static float Clamp01(float v)=>Clamp(v,0,1);
@@ -98,11 +98,12 @@ public class GameObject : Object { public static List<GameObject> All=new List<G
  public void SetActive(bool a){active=a;} public static GameObject Find(string n){ foreach(var g in All) if(g.name==n) return g; return null; } }
 public class MeshFilter : Component { public Mesh sharedMesh; }
 public class MeshRenderer : Component { public Material sharedMaterial{get=>sharedMaterials[0];set=>sharedMaterials=new[]{value};} public Material[] sharedMaterials; public Rendering.ShadowCastingMode shadowCastingMode; }
-public class Collider : Component {} public class MeshCollider : Collider { public Mesh sharedMesh; }
+public class Collider : Component { public Rigidbody attachedRigidbody; } public class MeshCollider : Collider { public Mesh sharedMesh; }
 public class BoxCollider : Collider { public Vector3 center,size; public bool isTrigger; }
+public class CapsuleCollider : Collider { public float radius, height; }
 public enum CollisionDetectionMode { Discrete, Continuous } public enum RigidbodyInterpolation { None, Interpolate }
 public class Rigidbody : Component { public float mass,drag,angularDrag; public CollisionDetectionMode collisionDetectionMode; public RigidbodyInterpolation interpolation; public Vector3 centerOfMass,velocity,angularVelocity,position; public Quaternion rotation;
- public void AddForce(Vector3 f){} public void AddForce(Vector3 f, ForceMode m){} public void AddForceAtPosition(Vector3 f,Vector3 p){} }
+ public void AddForce(Vector3 f){} public void AddForce(Vector3 f, ForceMode m){} public bool isKinematic; public void MovePosition(Vector3 p){} public void AddForceAtPosition(Vector3 f,Vector3 p){} }
 public struct JointSpring { public float spring,damper,targetPosition; }
 public struct WheelFrictionCurve { public float extremumSlip,extremumValue,asymptoteSlip,asymptoteValue,stiffness; }
 public struct WheelHit { public Vector3 point, normal; public float sidewaysSlip, forwardSlip; public Collider collider; }

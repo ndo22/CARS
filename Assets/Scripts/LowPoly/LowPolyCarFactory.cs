@@ -9,9 +9,9 @@ using UnityEngine;
 /// </summary>
 public static class LowPolyCarFactory
 {
-    public enum BodyStyle { Sport, Muscle, Hatch, Pickup, Buggy, Formula }
+    public enum BodyStyle { Sport, Muscle, Hatch, Pickup, Buggy, Formula, Monster, Police, Rocket }
 
-    public static readonly string[] StyleNames = { "SPORT", "MUSCLE", "HATCH", "PICKUP", "BUGGY", "FORMULA" };
+    public static readonly string[] StyleNames = { "SPORT", "MUSCLE", "HATCH", "PICKUP", "BUGGY", "FORMULA", "MONSTER", "POLICE", "ROCKET" };
 
     /// <summary>Jízdní vlastnosti stylu.</summary>
     public struct CarStats
@@ -33,6 +33,10 @@ public static class LowPolyCarFactory
             case BodyStyle.Pickup: return new CarStats { torque = 410f, topSpeed = 195f, steer = 26f, grip = 0.98f, mass = 600f };
             case BodyStyle.Buggy: return new CarStats { torque = 350f, topSpeed = 185f, steer = 33f, grip = 1.14f, mass = 440f };
             case BodyStyle.Formula: return new CarStats { torque = 450f, topSpeed = 250f, steer = 30f, grip = 1.22f, mass = 450f };
+            // Speciální auta z režimu POLICE CHASE
+            case BodyStyle.Monster: return new CarStats { torque = 540f, topSpeed = 178f, steer = 30f, grip = 1.06f, mass = 760f };
+            case BodyStyle.Police: return new CarStats { torque = 445f, topSpeed = 232f, steer = 27f, grip = 1.02f, mass = 560f };
+            case BodyStyle.Rocket: return new CarStats { torque = 500f, topSpeed = 268f, steer = 26f, grip = 1.12f, mass = 480f };
             default: return new CarStats { torque = 365f, topSpeed = 210f, steer = 28f, grip = 1.02f, mass = 500f };
         }
     }
@@ -52,16 +56,21 @@ public static class LowPolyCarFactory
         public Station[] body, cabin;
         public float front, rear;
         public float wheelRadius = 0.36f, wheelWidth = 0.3f;
+        public float suspension = 0.2f;
+        /// <summary>Spodní a horní hrana hlavního collideru (záporné = výchozí 0.42 až 1.02).</summary>
+        public float colliderBottom = -1f, colliderTop = -1f;
         public bool openWheels;       // kola mimo karoserii (buggy, formule)
         public float openWheelX;
         public int[] cabinTops = { SubGlass, SubPaint, SubGlass };
     }
 
-    private const int SubPaint = 0, SubGlass = 1, SubDark = 2, SubHeadlight = 3, SubTaillight = 4, SubTrim = 5;
+    private const int SubPaint = 0, SubGlass = 1, SubDark = 2, SubHeadlight = 3, SubTaillight = 4, SubTrim = 5, SubSiren = 6;
 
     public class Palette
     {
         public Material paint, glass, dark, headlight, taillight, trim, tire, hub, flame;
+        /// <summary>Modré světlo majáku (policie). Když chybí, použije se přední světlo.</summary>
+        public Material siren;
     }
 
     /// <summary>Volby stavby.</summary>
@@ -101,13 +110,15 @@ public static class LowPolyCarFactory
         float midZ = (body[body.Length - 1].z + body[0].z) * 0.5f;
         float wheelX = WheelX(shape);
         var lower = root.AddComponent<BoxCollider>();
-        lower.center = new Vector3(0f, 0.72f, midZ);
-        lower.size = new Vector3(Mathf.Max(wheelX * 2f + 0.25f, 1.2f), 0.6f, length);
+        float colBottom = shape.colliderBottom >= 0f ? shape.colliderBottom : 0.42f;
+        float colTop = shape.colliderTop >= 0f ? shape.colliderTop : 1.02f;
+        lower.center = new Vector3(0f, (colBottom + colTop) * 0.5f, midZ);
+        lower.size = new Vector3(Mathf.Max(wheelX * 2f + 0.25f, 1.2f), colTop - colBottom, length);
         if (shape.cabin != null)
         {
             var upper = root.AddComponent<BoxCollider>();
             float cabMid = (shape.cabin[0].z + shape.cabin[shape.cabin.Length - 1].z) * 0.5f;
-            upper.center = new Vector3(0f, 1.15f, cabMid);
+            upper.center = new Vector3(0f, colTop + 0.13f, cabMid);
             upper.size = new Vector3(wheelX * 2f - 0.2f, 0.45f, shape.cabin[shape.cabin.Length - 1].z - shape.cabin[0].z);
         }
 
@@ -116,7 +127,7 @@ public static class LowPolyCarFactory
         com.localPosition = new Vector3(0f, 0.4f, 0.05f);
 
         // --- kola
-        float wheelY = 0.5f + (shape.wheelRadius - 0.36f);
+        float wheelY = 0.5f + (shape.wheelRadius - 0.36f) + (shape.suspension - 0.2f) * 0.5f;
         var lf = CreateWheel(root.transform, "LeftFront", new Vector3(-wheelX, wheelY, shape.front), shape, palette, layer, stats, out WheelCollider lfc);
         var rf = CreateWheel(root.transform, "RightFront", new Vector3(wheelX, wheelY, shape.front), shape, palette, layer, stats, out WheelCollider rfc);
         var lb = CreateWheel(root.transform, "LeftBack", new Vector3(-wheelX, wheelY, shape.rear), shape, palette, layer, stats, out WheelCollider lbc);
@@ -148,7 +159,7 @@ public static class LowPolyCarFactory
         Shape shape = GetShape(style);
         BuildBody(root.transform, style, shape, palette, layer, new Options { number = number });
         float wheelX = WheelX(shape);
-        float wheelY = 0.5f + (shape.wheelRadius - 0.36f) - 0.13f;
+        float wheelY = 0.5f + (shape.wheelRadius - 0.36f) + (shape.suspension - 0.2f) * 0.5f - 0.13f;
         foreach (var p in new[] { new Vector3(-wheelX, wheelY, shape.front), new Vector3(wheelX, wheelY, shape.front),
                                   new Vector3(-wheelX, wheelY, shape.rear), new Vector3(wheelX, wheelY, shape.rear) })
         {
@@ -171,7 +182,7 @@ public static class LowPolyCarFactory
 
     private static void BuildBody(Transform root, BodyStyle style, Shape shape, Palette palette, int layer, Options options)
     {
-        var mb = new MeshBuilder(6);
+        var mb = new MeshBuilder(7);
         Station[] shell = shape.openWheels ? shape.body : WithWheelArches(shape.body, shape.front, shape.rear, shape.wheelRadius);
         Loft(mb, shell, 0.12f, SubPaint, null, SubDark);
         if (shape.cabin != null)
@@ -192,7 +203,8 @@ public static class LowPolyCarFactory
         bodyGo.AddComponent<MeshFilter>().sharedMesh = mb.ToMesh("CarBody");
         bodyGo.AddComponent<MeshRenderer>().sharedMaterials = new[]
         {
-            palette.paint, palette.glass, palette.dark, palette.headlight, palette.taillight, palette.trim
+            palette.paint, palette.glass, palette.dark, palette.headlight, palette.taillight, palette.trim,
+            palette.siren != null ? palette.siren : palette.headlight
         };
 
         // Plameny z výfuků při nitru (zapíná je CarEffects)
@@ -305,6 +317,53 @@ public static class LowPolyCarFactory
                 };
                 s.front = 1.6f; s.rear = -1.45f; s.wheelRadius = 0.36f; s.wheelWidth = 0.4f;
                 s.openWheels = true; s.openWheelX = 0.88f;
+                break;
+
+            case BodyStyle.Monster:
+                s.body = new[]
+                {
+                    new Station(-2.0f, 0.85f, 1.0f, 1.45f), new Station(-1.85f, 0.9f, 0.95f, 1.55f),
+                    new Station(1.6f, 0.9f, 0.95f, 1.55f), new Station(2.05f, 0.85f, 1.0f, 1.4f),
+                };
+                s.cabin = new[]
+                {
+                    new Station(-0.6f, 0.8f, 1.53f, 1.58f), new Station(-0.5f, 0.78f, 1.53f, 2.15f),
+                    new Station(0.6f, 0.76f, 1.53f, 2.15f), new Station(1.1f, 0.82f, 1.5f, 1.58f),
+                };
+                s.front = 1.35f; s.rear = -1.35f; s.wheelRadius = 0.62f; s.wheelWidth = 0.5f; s.suspension = 0.35f;
+                s.openWheels = true; s.openWheelX = 1.2f;
+                s.colliderBottom = 0.95f; s.colliderTop = 1.55f;
+                break;
+
+            case BodyStyle.Police:
+                s.body = new[]
+                {
+                    new Station(-2.25f, 0.88f, 0.4f, 0.95f), new Station(-2.05f, 0.98f, 0.32f, 1.0f),
+                    new Station(-0.9f, 1.0f, 0.3f, 1.0f), new Station(1.3f, 1.0f, 0.3f, 0.98f),
+                    new Station(2.1f, 0.98f, 0.32f, 0.88f), new Station(2.3f, 0.9f, 0.4f, 0.75f),
+                };
+                s.cabin = new[]
+                {
+                    new Station(-1.5f, 0.82f, 0.98f, 1.0f), new Station(-1.05f, 0.78f, 0.98f, 1.45f),
+                    new Station(0.1f, 0.76f, 0.98f, 1.48f), new Station(0.75f, 0.84f, 0.96f, 1.0f),
+                };
+                s.front = 1.45f; s.rear = -1.4f;
+                break;
+
+            case BodyStyle.Rocket:
+                s.body = new[]
+                {
+                    new Station(-2.4f, 0.7f, 0.34f, 0.75f), new Station(-2.2f, 0.88f, 0.28f, 0.82f),
+                    new Station(0f, 0.9f, 0.26f, 0.74f), new Station(1.8f, 0.62f, 0.26f, 0.52f),
+                    new Station(2.6f, 0.25f, 0.3f, 0.4f),
+                };
+                s.cabin = new[]
+                {
+                    new Station(-0.9f, 0.45f, 0.72f, 0.75f), new Station(-0.6f, 0.42f, 0.72f, 1.06f),
+                    new Station(0.3f, 0.4f, 0.7f, 1.06f), new Station(0.95f, 0.42f, 0.64f, 0.7f),
+                };
+                s.cabinTops = new[] { SubGlass, SubGlass, SubGlass };
+                s.front = 1.55f; s.rear = -1.5f;
                 break;
 
             default: // Sport
@@ -540,6 +599,54 @@ public static class LowPolyCarFactory
                         mb.Box(SubPaint, new Vector3(side * shape.openWheelX, shape.wheelRadius * 2f + 0.22f, z), new Vector3(0.46f, 0.06f, 1.0f));
                 break;
             }
+            case BodyStyle.Monster:
+            {
+                // Ochranný rám na korbě, nárazníky z trubek, výfuky za kabinou, světla na střeše
+                Beam(mb, SubDark, new Vector3(-0.7f, 1.55f, -0.9f), new Vector3(-0.7f, 2.05f, -0.9f), 0.09f);
+                Beam(mb, SubDark, new Vector3(0.7f, 1.55f, -0.9f), new Vector3(0.7f, 2.05f, -0.9f), 0.09f);
+                Beam(mb, SubDark, new Vector3(-0.7f, 2.05f, -0.9f), new Vector3(0.7f, 2.05f, -0.9f), 0.09f);
+                mb.Box(SubDark, new Vector3(0f, 1.05f, 2.15f), new Vector3(1.9f, 0.14f, 0.14f));
+                mb.Box(SubDark, new Vector3(0f, 1.05f, -2.1f), new Vector3(1.9f, 0.14f, 0.14f));
+                for (int side = -1; side <= 1; side += 2)
+                {
+                    mb.Cylinder(SubTrim, new Vector3(side * 0.6f, 1.55f, -0.75f), 0.08f, 0.08f, 0.8f, 6);
+                    // Blatníky nad obřími koly
+                    foreach (float z in new[] { shape.front, shape.rear })
+                        {
+                            mb.Box(SubPaint, new Vector3(side * shape.openWheelX, 1.44f, z), new Vector3(0.52f, 0.07f, 1.1f));
+                            mb.Box(SubPaint, new Vector3(side * shape.openWheelX, 1.32f, z + 0.62f), new Vector3(0.52f, 0.07f, 0.3f), Quaternion.Euler(-40f, 0f, 0f));
+                            mb.Box(SubPaint, new Vector3(side * shape.openWheelX, 1.32f, z - 0.62f), new Vector3(0.52f, 0.07f, 0.3f), Quaternion.Euler(40f, 0f, 0f));
+                        }
+                }
+                for (int i = -1; i <= 1; i++)
+                    mb.Box(SubHeadlight, new Vector3(i * 0.45f, 2.2f, 0.5f), new Vector3(0.24f, 0.14f, 0.06f));
+                break;
+            }
+            case BodyStyle.Police:
+            {
+                // Maják: červená (zadní světlo) a modrá světla, rám, nárazník s trubkami
+                float roof = shape.cabin[1].top;
+                mb.Box(SubDark, new Vector3(0f, roof + 0.04f, -0.45f), new Vector3(1.3f, 0.08f, 0.32f));
+                mb.Box(SubTaillight, new Vector3(-0.34f, roof + 0.14f, -0.45f), new Vector3(0.56f, 0.14f, 0.28f));
+                mb.Box(SubSiren, new Vector3(0.34f, roof + 0.14f, -0.45f), new Vector3(0.56f, 0.14f, 0.28f));
+                mb.Box(SubDark, new Vector3(0f, 0.55f, 2.42f), new Vector3(1.3f, 0.36f, 0.08f));
+                mb.Box(SubDark, new Vector3(-0.5f, 0.55f, 2.36f), new Vector3(0.08f, 0.4f, 0.16f));
+                mb.Box(SubDark, new Vector3(0.5f, 0.55f, 2.36f), new Vector3(0.08f, 0.4f, 0.16f));
+                break;
+            }
+            case BodyStyle.Rocket:
+            {
+                // Ocasní ploutve, zadní křídlo a trysky
+                for (int side = -1; side <= 1; side += 2)
+                {
+                    Beam(mb, SubPaint, new Vector3(side * 0.62f, 0.8f, -1.9f), new Vector3(side * 0.7f, 1.55f, -2.35f), 0.07f);
+                    mb.Box(SubPaint, new Vector3(side * 0.66f, 1.1f, -2.1f), new Vector3(0.05f, 0.55f, 0.6f));
+                    Cone(mb, SubDark, new Vector3(side * 0.35f, 0.42f, -2.38f), Vector3.back, 0.22f, 0.3f);
+                }
+                mb.Box(SubDark, new Vector3(0f, 1.5f, -2.3f), new Vector3(1.55f, 0.06f, 0.4f));
+                mb.Box(SubTrim, new Vector3(0f, 0.74f, 1.2f), new Vector3(0.2f, 0.02f, 1.6f));
+                break;
+            }
             case BodyStyle.Formula:
             {
                 // Bočnice, kokpit, airbox, přední a zadní křídlo
@@ -727,7 +834,7 @@ public static class LowPolyCarFactory
         collider = colliderGo.AddComponent<WheelCollider>();
         collider.radius = shape.wheelRadius;
         collider.mass = 20f;
-        collider.suspensionDistance = 0.2f;
+        collider.suspensionDistance = shape.suspension;
         collider.forceAppPointDistance = 0.1f;
         collider.wheelDampingRate = 0.5f;
         collider.suspensionSpring = new JointSpring { spring = 22000f * stats.mass / 500f, damper = 2200f * stats.mass / 500f, targetPosition = 0.5f };

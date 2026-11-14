@@ -6,7 +6,28 @@
 public static class ProceduralAudio
 {
     private const int Rate = 44100;
-    private static AudioClip squeal, nitro, impact, music, menuMusic;
+    private static AudioClip squeal, nitro, impact, music, menuMusic, siren;
+
+    /// <summary>Policejní siréna - kvílivý tón nahoru a dolů (smyčka 2 s).</summary>
+    public static AudioClip Siren()
+    {
+        if (siren != null) return siren;
+        int n = Rate * 2;
+        var data = new float[n];
+        float phase = 0f;
+        for (int i = 0; i < n; i++)
+        {
+            float t = i / (float)Rate;
+            float sweep = 0.5f - 0.5f * Mathf.Cos(t * Mathf.PI); // 0 -> 1 -> 0 během 2 s
+            float f = Mathf.Lerp(620f, 1250f, sweep);
+            phase += f / Rate;
+            float x = phase - Mathf.Floor(phase);
+            data[i] = (Mathf.Sin(phase * Mathf.PI * 2f) * 0.6f + (x < 0.5f ? 0.2f : -0.2f)) * 0.5f;
+        }
+        LoopFade(data, 300);
+        siren = Make("Siren", data);
+        return siren;
+    }
 
     /// <summary>Pískání pneumatik (smyčka).</summary>
     public static AudioClip Squeal()

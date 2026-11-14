@@ -13,6 +13,7 @@ public partial class LowPolyRaceBootstrap
         public Player player;
         public UIController ui;
         public RectTransform nitroFill;
+        public CarController chaseCar; // režim POLICE CHASE (bez RacerBase)
         public Text drift;
     }
 

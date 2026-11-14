@@ -60,6 +60,25 @@ Hra startuje scénou `LowPolyTrack` – titulní menu: **QUICK RACE**, **CHAMPIO
 - **Procedurální hudba a zvuky** (generované kódem, bez licencí).
 - Náhled tratě v editoru: menu **CARS → Low Poly → Preview …** (do scény se neukládá).
 
+### Režim POLICE CHASE
+
+Druhý herní režim (titulní menu → POLICE CHASE): **překážková dráha ze startu do cíle**, vyvýšená nad krajinou
+na pilířích, a za tebou jede **policie**. Když se policejní auto udrží těsně u tebe, plní se ukazatel BUSTED.
+
+- **15 levelů**, každý se odemkne dokončením předchozího. Prostředí se střídají (louka, poušť, sníh, pobřeží, noční město).
+- Na dráze: **skokanky přes mezery** (až 24 m), pole beden a sudů, slalom kuželů, zúžené úseky bez svodidel,
+  posuvné zátarasy, **boost pady**. Ve vzduchu se auto samo srovnává, plynem a brzdou nakláníš předek.
+- Policie zrychlí, když je daleko, a zblízka najíždí na hráče. Od 6. levelu jedou 2 auta, od 12. levelu 3.
+- Spadneš nebo se převrátíš → návrat na poslední bezpečné místo (+3 s). R funguje taky.
+- **1–3 hvězdy** podle času, nejlepší časy, replay.
+- **Speciální auta**: MONSTER (monster truck) za 5 dokončených levelů, POLICE za 10, ROCKET za všech 15.
+
+Dráhy generuje `ObstacleCourse` (stejný level = vždy stejná dráha), levely a postup jsou v `ChaseLevels`,
+policejní AI v `ChaseAI`, hra v `LowPolyRaceBootstrap.Chase.cs`.
+
+![Dráha](Docs/chase-course.png)
+![Speciální auta](Docs/chase-cars.png)
+
 ### Další funkce
 
 - **Split-screen pro 2 hráče** (rychlý závod): hráč 1 má WASD a gamepad 1, hráč 2 šipky, pravý Ctrl (drift), pravý Shift (nitro), Enter (reset) a gamepad 2.

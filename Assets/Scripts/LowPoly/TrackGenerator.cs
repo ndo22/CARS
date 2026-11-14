@@ -27,6 +27,8 @@ public static class TrackGenerator
         public int cloudCount = 18;
         [Tooltip("Postavit lampy i ve dne (pro závod, kde se během jízdy setmí).")]
         public bool forceLamps;
+        [Tooltip("O kolik je terén u trati níž než silnice (vyvýšená dráha v režimu POLICE CHASE má 10 m).")]
+        public float groundDrop = 0.4f;
     }
 
     public class TrackResult
@@ -487,12 +489,12 @@ public static class TrackGenerator
         public TrackResult track;
         public TrackTheme theme;
         public Vector3 min, max;
-        public float flatZone, noiseOffset, waterLevel, trackMaxX, baseY;
+        public float flatZone, noiseOffset, waterLevel, trackMaxX, baseY, groundDrop = 0.4f;
 
         public float Height(float x, float z)
         {
             NearestOnTrack(track, x, z, out float dist, out float roadY);
-            if (theme.flatGround) return roadY - 0.4f;
+            if (theme.flatGround) return roadY - groundDrop;
             float hills = (Mathf.PerlinNoise(x * 0.007f + noiseOffset, z * 0.007f + noiseOffset) - 0.4f) * theme.hillAmplitude
                         + (Mathf.PerlinNoise(x * 0.02f + noiseOffset, z * 0.02f) - 0.5f) * 8f;
 
@@ -504,8 +506,8 @@ public static class TrackGenerator
                 hills -= Mathf.Max(0f, x - (trackMaxX + 25f)) * 0.35f + 4f; // pobřeží klesá do moře
 
             float blend = Mathf.SmoothStep(0f, 1f, (dist - flatZone) / 80f);
-            float floor = theme.hasWater ? waterLevel - 12f : roadY - 6f;
-            return Mathf.Lerp(roadY - 0.4f, Mathf.Max(floor, hills + baseY), blend);
+            float floor = theme.hasWater ? waterLevel - 12f : roadY - groundDrop - 5.6f;
+            return Mathf.Lerp(roadY - groundDrop, Mathf.Max(floor, hills + baseY - groundDrop + 0.4f), blend);
         }
 
         public float Distance(float x, float z)
@@ -513,6 +515,24 @@ public static class TrackGenerator
             NearestOnTrack(track, x, z, out float dist, out _);
             return dist;
         }
+    }
+
+    /// <summary>
+    /// Krajina (terén, voda, stromy, dominanty, mraky) kolem libovolné cesty - používá ji i překážková dráha.
+    /// Cesta nemusí být uzavřená; stačí body středové čáry.
+    /// </summary>
+    public static void BuildEnvironment(Transform parent, Vector3[] path, TrackSettings s, TrackTheme theme, IPalette palette)
+    {
+        var t = new TrackResult { centers = path, forwards = new Vector3[path.Length], rights = new Vector3[path.Length] };
+        for (int i = 0; i < path.Length; i++)
+        {
+            Vector3 f = path[Mathf.Min(i + 1, path.Length - 1)] - path[Mathf.Max(i - 1, 0)];
+            f.y = 0f;
+            t.forwards[i] = f.sqrMagnitude > 0.0001f ? f.normalized : Vector3.forward;
+            t.rights[i] = Vector3.Cross(Vector3.up, t.forwards[i]).normalized;
+        }
+        t.BuildIndex();
+        BuildTerrainAndScenery(parent, t, s, theme, palette, new System.Random(s.seed));
     }
 
     private static void BuildTerrainAndScenery(Transform parent, TrackResult t, TrackSettings s, TrackTheme theme, IPalette palette, System.Random rng)
@@ -534,7 +554,8 @@ public static class TrackGenerator
         ctx.flatZone = s.roadWidth * 0.5f + s.barrierOffset + 8f;
         ctx.noiseOffset = s.seed % 1000;
         ctx.baseY = t.centers[0].y;
-        ctx.waterLevel = minRoad - 1.6f;
+        ctx.groundDrop = s.groundDrop;
+        ctx.waterLevel = minRoad - s.groundDrop - 1.2f;
 
         // --- Terén
         int nx = Mathf.CeilToInt((ctx.max.x - ctx.min.x) / cell) + 1;

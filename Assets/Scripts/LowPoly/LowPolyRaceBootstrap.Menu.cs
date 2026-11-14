@@ -55,6 +55,7 @@ public partial class LowPolyRaceBootstrap
             case RaceSetup.Screen.Setup: BuildSetupScreen(); break;
             case RaceSetup.Screen.Settings: BuildSettingsScreen(); break;
             case RaceSetup.Screen.Achievements: BuildAchievementsScreen(); break;
+            case RaceSetup.Screen.Levels: BuildLevelsScreen(); break;
             default: BuildTitleScreen(); break;
         }
     }
@@ -166,10 +167,11 @@ public partial class LowPolyRaceBootstrap
         Text subtitle = LowPolyUI.Label(root, "RACING", 55, TextAnchor.UpperLeft, LowPolyUI.Accent, "Subtitle");
         LowPolyUI.Place(subtitle.rectTransform, new Vector2(0f, 1f), new Vector2(54f, -174f), new Vector2(800f, 60f));
 
-        string[] labels = { "QUICK RACE", "CHAMPIONSHIP", "TIME TRIAL", "TRACK EDITOR", "ACHIEVEMENTS", "CLASSIC TRACK", "SETTINGS", "QUIT" };
+        string[] labels = { "QUICK RACE", "POLICE CHASE", "CHAMPIONSHIP", "TIME TRIAL", "TRACK EDITOR", "ACHIEVEMENTS", "CLASSIC TRACK", "SETTINGS", "QUIT" };
         Action[] actions =
         {
             () => OpenSetup(RaceSetup.Mode.QuickRace),
+            () => ShowScreen(RaceSetup.Screen.Levels),
             () => OpenSetup(RaceSetup.Mode.Championship),
             () => OpenSetup(RaceSetup.Mode.TimeTrial),
             () => ShowScreen(RaceSetup.Screen.Editor),
@@ -184,7 +186,7 @@ public partial class LowPolyRaceBootstrap
             Text label = b.GetComponentInChildren<Text>();
             label.alignment = TextAnchor.MiddleLeft;
             label.rectTransform.offsetMin = new Vector2(28f, 0f);
-            LowPolyUI.Place((RectTransform)b.transform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(54f, -270f - i * 74f), new Vector2(440f, 64f));
+            LowPolyUI.Place((RectTransform)b.transform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(54f, -262f - i * 70f), new Vector2(440f, 60f));
         }
 
         Text profile = LowPolyUI.Label(root, $"WINS {Profile.Wins}   |   CHAMPIONSHIPS {Profile.Championships}   |   ACHIEVEMENTS {Achievements.Count} OF {Achievements.All.Length}",
@@ -311,8 +313,10 @@ public partial class LowPolyRaceBootstrap
         ChoiceRow(right, 30f, y - 86f, new[] { "PICKUP", "BUGGY", "FORMULA" }, (int)RaceSetup.carStyle - 3, 168f, i => SetStyle(i + 3), 46f, 20,
             i => Profile.IsUnlocked((LowPolyCarFactory.BodyStyle)(i + 3)), i => Profile.UnlockHint((LowPolyCarFactory.BodyStyle)(i + 3)));
 
+        ChoiceRow(right, 30f, y - 138f, new[] { "MONSTER", "POLICE", "ROCKET" }, (int)RaceSetup.carStyle - 6, 168f, i => SetStyle(i + 6), 46f, 20,
+            i => Profile.IsUnlocked((LowPolyCarFactory.BodyStyle)(i + 6)), i => Profile.UnlockHint((LowPolyCarFactory.BodyStyle)(i + 6)));
         // Vlastnosti auta
-        y -= 150f;
+        y -= 202f;
         string[] statNames = { "SPEED", "ACCEL", "GRIP", "HANDLING" };
         statBars = new RectTransform[statNames.Length];
         for (int i = 0; i < statNames.Length; i++)
@@ -329,7 +333,7 @@ public partial class LowPolyRaceBootstrap
         }
         UpdateStats();
 
-        y -= 70f;
+        y -= 66f;
         Header(right, "COLOR", y);
         var colors = new LowPolyUI.ChoiceGroup();
         for (int i = 0; i < CarColors.Length; i++)
@@ -353,15 +357,15 @@ public partial class LowPolyRaceBootstrap
         }
         colors.Select(RaceSetup.colorIndex);
 
-        y -= 96f;
+        y -= 88f;
         Header(right, "PATTERN", y);
         ChoiceRow(right, 30f, y - 34f, Cosmetics.Patterns, RaceSetup.pattern, 122f, i => { RaceSetup.pattern = i; SpawnPreviewCar(); }, 44f, 18,
             Cosmetics.PatternUnlocked, Cosmetics.PatternHint);
-        y -= 92f;
+        y -= 84f;
         Header(right, "RIMS", y);
         ChoiceRow(right, 30f, y - 34f, Cosmetics.Rims, RaceSetup.rims, 122f, i => { RaceSetup.rims = i; SpawnPreviewCar(); }, 44f, 18,
             Cosmetics.RimUnlocked, Cosmetics.RimHint);
-        y -= 92f;
+        y -= 84f;
         Header(right, "NUMBER", y);
         Text number = LowPolyUI.Label(right, RaceSetup.number.ToString(), 30, TextAnchor.MiddleCenter, Color.white, "Number", true);
         LowPolyUI.Place(number.rectTransform, new Vector2(0f, 1f), new Vector2(230f, y - 2f), new Vector2(100f, 44f));
@@ -531,12 +535,16 @@ public partial class LowPolyRaceBootstrap
             Achievements.Definition a = Achievements.All[i];
             bool has = Achievements.Has(a.id);
             RectTransform card = LowPolyUI.Panel(root, a.id, has ? new Color(0.25f, 0.2f, 0.05f, 0.85f) : LowPolyUI.PanelColor);
-            LowPolyUI.Place(card, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(40f + (i % 2) * 920f, -170f - (i / 2) * 128f), new Vector2(900f, 116f));
-            Text n = LowPolyUI.Label(card, (has ? "" : "LOCKED   ") + a.name, 30, TextAnchor.UpperLeft, has ? LowPolyUI.Accent : Dim, "Name", true);
-            LowPolyUI.Place(n.rectTransform, new Vector2(0f, 1f), new Vector2(24f, -14f), new Vector2(860f, 38f));
-            string reward = string.IsNullOrEmpty(a.reward) ? "" : "   |   REWARD  " + a.reward;
-            Text d = LowPolyUI.Label(card, a.description + reward, 20, TextAnchor.UpperLeft, Color.white, "Description", true);
-            LowPolyUI.Place(d.rectTransform, new Vector2(0f, 1f), new Vector2(24f, -64f), new Vector2(860f, 30f));
+            LowPolyUI.Place(card, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(40f + (i % 3) * 620f, -160f - (i / 3) * 124f), new Vector2(600f, 112f));
+            Text n = LowPolyUI.Label(card, (has ? "" : "LOCKED   ") + a.name, 28, TextAnchor.UpperLeft, has ? LowPolyUI.Accent : Dim, "Name", true);
+            LowPolyUI.Place(n.rectTransform, new Vector2(0f, 1f), new Vector2(20f, -10f), new Vector2(570f, 36f));
+            Text d = LowPolyUI.Label(card, a.description, 17, TextAnchor.UpperLeft, Color.white, "Description", true);
+            LowPolyUI.Place(d.rectTransform, new Vector2(0f, 1f), new Vector2(20f, -50f), new Vector2(570f, 24f));
+            if (!string.IsNullOrEmpty(a.reward))
+            {
+                Text r = LowPolyUI.Label(card, "REWARD  " + a.reward, 17, TextAnchor.UpperLeft, LowPolyUI.Accent, "Reward", true);
+                LowPolyUI.Place(r.rectTransform, new Vector2(0f, 1f), new Vector2(20f, -78f), new Vector2(570f, 24f));
+            }
         }
 
         Image back = LowPolyUI.Button(root, "< BACK", 28, () => ShowScreen(RaceSetup.Screen.Title));

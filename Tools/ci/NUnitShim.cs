@@ -11,6 +11,7 @@ namespace NUnit.Framework
         public static void IsFalse(bool c, string msg = null) { if (c) Fail("expected false", msg); }
         public static void IsNotNull(object o, string msg = null) { if (o == null) Fail("expected not null", msg); }
         public static void AreEqual(object e, object a, string msg = null) { if (!Equals(e, a)) Fail($"expected <{e}> but was <{a}>", msg); }
+        public static void AreNotEqual(object e, object a, string msg = null) { if (Equals(e, a)) Fail($"expected not <{e}>", msg); }
         public static void AreEqual(float e, float a, float d, string msg = null) { if (Math.Abs(e - a) > d) Fail($"expected {e} +- {d} but was {a}", msg); }
         public static void Greater(float a, float b, string msg = null) { if (!(a > b)) Fail($"expected {a} > {b}", msg); }
         public static void Less(float a, float b, string msg = null) { if (!(a < b)) Fail($"expected {a} < {b}", msg); }

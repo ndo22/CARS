@@ -188,3 +188,107 @@ public class AudioTests
         Assert.AreEqual(0f, data[data.Length - 1], 0.0001f);
     }
 }
+
+public class ChaseCourseTests
+{
+    [Test]
+    public void AllLevelsAreValid()
+    {
+        for (int level = 1; level <= ChaseLevels.Count; level++)
+        {
+            ObstacleCourse.Plan p = ObstacleCourse.Generate(level);
+            string name = "level " + level;
+            Assert.Greater(p.Count, 50, name);
+            Assert.Less(p.finishIndex, p.Count, name);
+            Assert.Less(p.playerStart, p.finishIndex, name);
+            Assert.Less(p.policeStart, p.playerStart, name + ": police must start behind the player");
+            Assert.GreaterOrEqual(p.jumps, 1f, name + ": every level needs a jump");
+            Assert.Greater(p.safePoints.Count, 3, name);
+            Assert.Greater(p.length, 400f, name);
+            Assert.Less(p.length, 2200f, name);
+            Assert.IsTrue(p.solid[p.playerStart] && p.solid[p.finishIndex], name + ": start and finish on the road");
+        }
+    }
+
+    [Test]
+    public void CourseNeverTurnsBackOnItself()
+    {
+        // Směr se drží v ±85° od startu, takže z stále roste a dráha se nemůže zkřížit
+        for (int level = 1; level <= ChaseLevels.Count; level++)
+        {
+            ObstacleCourse.Plan p = ObstacleCourse.Generate(level);
+            for (int i = 1; i < p.Count; i++)
+                Assert.Greater(p.points[i].z, p.points[i - 1].z, "level " + level + " goes backwards at " + i);
+        }
+    }
+
+    [Test]
+    public void GapsAreJumpable()
+    {
+        for (int level = 1; level <= ChaseLevels.Count; level++)
+        {
+            ObstacleCourse.Plan p = ObstacleCourse.Generate(level);
+            int gap = 0;
+            for (int i = 0; i < p.Count; i++)
+            {
+                if (!p.solid[i]) { gap++; continue; }
+                Assert.LessOrEqual(gap * ObstacleCourse.Step, 27f, "level " + level + ": gap too long");
+                if (gap > 0)
+                {
+                    // Před každou mezerou je skokanka
+                    Assert.AreEqual(ObstacleCourse.Feature.Ramp, p.features[i - gap - 1], "level " + level);
+                }
+                gap = 0;
+            }
+        }
+    }
+
+    [Test]
+    public void SafePointsAreOnSolidRoad()
+    {
+        for (int level = 1; level <= ChaseLevels.Count; level++)
+        {
+            ObstacleCourse.Plan p = ObstacleCourse.Generate(level);
+            foreach (int s in p.safePoints)
+            {
+                Assert.IsTrue(p.solid[s], "level " + level);
+                Assert.AreNotEqual(ObstacleCourse.Feature.Gap, p.features[s]);
+            }
+            Assert.LessOrEqual(p.SafeBefore(p.finishIndex), p.finishIndex);
+        }
+    }
+
+    [Test]
+    public void ObstaclesLeaveRoomToPass()
+    {
+        for (int level = 1; level <= ChaseLevels.Count; level++)
+        {
+            ObstacleCourse.Plan p = ObstacleCourse.Generate(level);
+            foreach (ObstacleCourse.Item item in p.items)
+            {
+                int i = p.Nearest(item.position, 0, 0, p.Count);
+                float lateral = Mathf.Abs(Vector3.Dot(item.position - p.points[i], p.Right(i)));
+                Assert.Less(lateral, p.widths[i] * 0.5f, "level " + level + ": " + item.type + " off the road");
+            }
+        }
+    }
+
+    [Test]
+    public void GenerationIsDeterministic()
+    {
+        ObstacleCourse.Plan a = ObstacleCourse.Generate(7), b = ObstacleCourse.Generate(7);
+        Assert.AreEqual(a.Count, b.Count);
+        Assert.AreEqual(a.items.Count, b.items.Count);
+        Assert.AreEqual(a.length, b.length, 0.001f);
+    }
+
+    [Test]
+    public void StarsGetHarderWithTime()
+    {
+        Assert.AreEqual(3, ChaseLevels.StarsFor(30f, 1000f));
+        Assert.AreEqual(2, ChaseLevels.StarsFor(45f, 1000f));
+        Assert.AreEqual(1, ChaseLevels.StarsFor(90f, 1000f));
+        Assert.Greater(ChaseLevels.PoliceSkill(15), ChaseLevels.PoliceSkill(1));
+        Assert.GreaterOrEqual(ChaseLevels.PoliceCount(15), ChaseLevels.PoliceCount(1));
+    }
+}

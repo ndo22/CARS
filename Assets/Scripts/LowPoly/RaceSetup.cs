@@ -6,8 +6,8 @@ using UnityEngine;
 /// </summary>
 public static class RaceSetup
 {
-    public enum Screen { Title, Setup, Settings, Editor, Achievements }
-    public enum Mode { QuickRace, Championship, TimeTrial }
+    public enum Screen { Title, Setup, Settings, Editor, Achievements, Levels }
+    public enum Mode { QuickRace, Championship, TimeTrial, Chase }
 
     /// <summary>true = hráč už si vybral a scéna má rovnou spustit závod (např. po restartu).</summary>
     public static bool configured;
@@ -31,6 +31,9 @@ public static class RaceSetup
     public static LowPolyCarFactory.BodyStyle carStyle2 = LowPolyCarFactory.BodyStyle.Muscle;
     /// <summary>Kosmetika: vzor laku, barva disků, startovní číslo.</summary>
     public static int pattern, rims, number = 7;
+    /// <summary>Level režimu POLICE CHASE (1..15).</summary>
+    public static int chaseLevel = 1;
+
     /// <summary>Index vlastní tratě z editoru (-1 = vestavěná).</summary>
     public static int customTrack = -1;
 
@@ -91,6 +94,10 @@ public static class Profile
             case LowPolyCarFactory.BodyStyle.Pickup: return Wins >= 1;
             case LowPolyCarFactory.BodyStyle.Buggy: return Wins >= 3;
             case LowPolyCarFactory.BodyStyle.Formula: return Championships >= 1;
+            case LowPolyCarFactory.BodyStyle.Monster:
+            case LowPolyCarFactory.BodyStyle.Police:
+            case LowPolyCarFactory.BodyStyle.Rocket:
+                return ChaseLevels.Completed >= ChaseLevels.RequiredFor(style);
             default: return true;
         }
     }
@@ -102,6 +109,10 @@ public static class Profile
             case LowPolyCarFactory.BodyStyle.Pickup: return "WIN 1 RACE";
             case LowPolyCarFactory.BodyStyle.Buggy: return "WIN 3 RACES";
             case LowPolyCarFactory.BodyStyle.Formula: return "WIN A CHAMPIONSHIP";
+            case LowPolyCarFactory.BodyStyle.Monster:
+            case LowPolyCarFactory.BodyStyle.Police:
+            case LowPolyCarFactory.BodyStyle.Rocket:
+                return $"FINISH {ChaseLevels.RequiredFor(style)} CHASE LEVELS";
             default: return "";
         }
     }

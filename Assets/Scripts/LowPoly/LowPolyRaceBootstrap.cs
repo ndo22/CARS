@@ -76,6 +76,13 @@ public partial class LowPolyRaceBootstrap : MonoBehaviour
         if (!Profile.IsUnlocked(RaceSetup.carStyle)) RaceSetup.carStyle = LowPolyCarFactory.BodyStyle.Sport;
         if (!Profile.IsColorUnlocked(RaceSetup.colorIndex)) RaceSetup.colorIndex = 0;
 
+        // Honička s policií má vlastní dráhu - okruh se nestaví
+        if (RaceSetup.configured && RaceSetup.mode == RaceSetup.Mode.Chase)
+        {
+            StartChase();
+            return;
+        }
+
         LoadTrack(RaceSetup.trackIndex);
 
         if (RaceSetup.configured)
@@ -96,6 +103,7 @@ public partial class LowPolyRaceBootstrap : MonoBehaviour
         }
         UpdateMenu();
         UpdateRace();
+        UpdateChase();
     }
 
     private void PlayMusic(System.Func<AudioClip> source)
@@ -248,6 +256,7 @@ public partial class LowPolyRaceBootstrap : MonoBehaviour
                 case "neonA": return owner.Mat(key, new Color(0.1f, 0.4f, 0.45f), 0.6f, new Color(0.2f, 1f, 1f) * 2f);
                 case "neonB": return owner.Mat(key, new Color(0.45f, 0.1f, 0.35f), 0.6f, new Color(1f, 0.2f, 0.8f) * 2f);
                 case "roof": return owner.Mat(key, new Color(0.25f, 0.26f, 0.3f), 0.1f);
+                case "boost": return owner.Mat(key, new Color(0.1f, 0.5f, 0.6f), 0.5f, new Color(0.2f, 0.9f, 1f) * 2f);
                 case "water": return owner.WaterMat(key, t["water"]);
                 case "waterB": return owner.WaterMat(key, Color.Lerp(t["water"], Color.white, 0.12f));
                 case "metal": return owner.Mat(key, t["metal"], 0.45f);
