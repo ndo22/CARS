@@ -142,6 +142,10 @@ public partial class LowPolyRaceBootstrap : MonoBehaviour
 
         world = new GameObject("World").transform;
         track = TrackGenerator.Build(world, settings, theme, new Palette(this));
+        // Utržené díly svodidel na silnici se propadnou dřív než ty, které odletí do trávy
+        TrackGenerator.TrackResult builtTrack = track;
+        float roadEdge = settings.roadWidth * 0.5f + 1f;
+        Breakable.IsOnRoad = p => TrackGenerator.DistanceFromCenter(builtTrack, p) < roadEdge;
     }
 
     private void SetupEnvironment()

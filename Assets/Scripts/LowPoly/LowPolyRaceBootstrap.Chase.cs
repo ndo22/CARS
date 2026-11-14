@@ -56,6 +56,13 @@ public partial class LowPolyRaceBootstrap
         world = new GameObject("World").transform;
         course = ObstacleCourse.Generate(level);
         ObstacleCourse.Build(world, course, theme, new Palette(this), settings.seed, settings);
+        ObstacleCourse.Plan builtCourse = course;
+        Breakable.IsOnRoad = p =>
+        {
+            int i = builtCourse.Nearest(p, 0, 0, builtCourse.Count);
+            float lateral = Mathf.Abs(Vector3.Dot(p - builtCourse.points[i], builtCourse.Right(i)));
+            return lateral < builtCourse.widths[i] * 0.5f + 1f && Mathf.Abs(p.y - builtCourse.points[i].y) < 4f;
+        };
 
         PlayMusic(ProceduralAudio.RaceMusic);
         SkidMarks.Create(Mat("skid", new Color(0.09f, 0.09f, 0.1f), 0.05f));

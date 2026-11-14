@@ -32,6 +32,7 @@ public static class Achievements
         new Definition("most_wanted", "MOST WANTED", "FINISH 10 CHASE LEVELS", "POLICE CAR"),
         new Definition("legend", "LEGEND", "FINISH ALL 15 CHASE LEVELS", "ROCKET CAR"),
         new Definition("high_flyer", "HIGH FLYER", "JUMP OVER 30 METERS"),
+        new Definition("wrecking_crew", "WRECKING CREW", "SMASH 100 BARRIERS, CRATES OR ROADBLOCKS"),
     };
 
     /// <summary>Vyvolá se při odemčení (pro oznámení ve hře).</summary>
@@ -66,6 +67,16 @@ public static class Achievements
             if (PlayerPrefs.GetInt("visited_" + id, 0) == 0) return;
         Unlock("world_tour");
     }
+
+    /// <summary>Hráč prorazil zničitelný objekt (svodidlo, bednu, zátaras, pneumatiky).</summary>
+    public static void ObjectSmashed()
+    {
+        int n = PlayerPrefs.GetInt("smashed", 0) + 1;
+        PlayerPrefs.SetInt("smashed", n);
+        if (n >= 100) Unlock("wrecking_crew");
+    }
+
+    public static int Smashed => PlayerPrefs.GetInt("smashed", 0);
 
     public static float NitroSeconds
     {

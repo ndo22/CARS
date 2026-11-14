@@ -3,7 +3,8 @@ using UnityEngine;
 
 /// <summary>
 /// Překážková dráha pro režim POLICE CHASE: vyvýšená silnice ze startu do cíle (ne okruh)
-/// se skokankami přes mezery, poli beden a sudů, slalomem, zúženými úseky, pohyblivými zátarasy a boost pady.
+/// se skokankami přes mezery, poli beden a sudů, slalomem, zúženými úseky, pohyblivými zátarasy, boost pady
+/// a dřevěnými zátarasy přes celou silnici, které se dají prorazit (bedny se rozbijí taky).
 ///
 /// Dráha se nejdřív naplánuje (<see cref="Generate"/> - čistá logika bez Unity objektů, testovatelná)
 /// a pak postaví (<see cref="Build"/>). Směr dráhy se drží v rozmezí ±85° od startu, takže se nikdy nezkříží.
@@ -14,8 +15,8 @@ public static class ObstacleCourse
     public const float BaseHeight = 10f;   // výška silnice nad terénem
     public const float RoadWidth = 12f;
 
-    public enum Feature { Normal, Start, Finish, Curve, Ramp, Gap, Landing, Obstacles, Narrow, Boost, Movers, Slalom }
-    public enum ItemType { Crate, Barrel, Block, Cone, BoostPad, Slider }
+    public enum Feature { Normal, Start, Finish, Curve, Ramp, Gap, Landing, Obstacles, Narrow, Boost, Movers, Slalom, Roadblock }
+    public enum ItemType { Crate, Barrel, Block, Cone, BoostPad, Slider, Barricade }
 
     public struct Item
     {
@@ -139,6 +140,7 @@ public static class ObstacleCourse
                 case Feature.Boost: Boost(b); break;
                 case Feature.Movers: Movers(b, d); break;
                 case Feature.Slalom: Slalom(b, d); break;
+                case Feature.Roadblock: Roadblock(b, level); break;
                 default: Hill(b, d); break;
             }
             last = next;
@@ -159,7 +161,7 @@ public static class ObstacleCourse
         if (!jumpDone && n >= total / 2) return Feature.Ramp;
 
         var options = new List<Feature> { Feature.Curve, Feature.Curve, Feature.Ramp, Feature.Obstacles, Feature.Normal, Feature.Boost };
-        if (level >= 2) options.Add(Feature.Slalom);
+        if (level >= 2) { options.Add(Feature.Slalom); options.Add(Feature.Roadblock); }
         if (level >= 3) { options.Add(Feature.Narrow); options.Add(Feature.Ramp); }
         if (level >= 5) { options.Add(Feature.Movers); options.Add(Feature.Obstacles); }
         if (level >= 8) { options.Add(Feature.Ramp); options.Add(Feature.Movers); }
@@ -256,6 +258,21 @@ public static class ObstacleCourse
         }
     }
 
+    /// <summary>Zátaras přes celou silnici ze tří dřevěných zábran - dá se prorazit, ale stojí to rychlost.</summary>
+    private static void Roadblock(Builder b, int level)
+    {
+        int steps = Mathf.RoundToInt(45f / Step);
+        int start = b.Index;
+        b.Add(steps, Feature.Roadblock, RoadWidth, true, true);
+        int at = start + steps / 2;
+        // Od 7. levelu je jedna krajní zábrana betonová - musíš trefit dřevěnou (prostřední je vždy dřevěná kvůli policii)
+        int solid = level >= 7 ? (b.rng.NextDouble() < 0.5 ? 0 : 2) : -1;
+        for (int k = 0; k < 3; k++)
+            b.AddItem(k == solid ? ItemType.Block : ItemType.Barricade, at, (k - 1) * BarricadeWidth);
+    }
+
+    public const float BarricadeWidth = 3.7f;
+
     private static void Boost(Builder b)
     {
         int start = b.Index;
@@ -290,7 +307,7 @@ public static class ObstacleCourse
             for (int k = Mathf.Max(0, i - 2); k <= Mathf.Min(p.Count - 1, i + 2); k++)
             {
                 Feature f = p.features[k];
-                if (!p.solid[k] || f == Feature.Ramp || f == Feature.Landing || f == Feature.Gap || f == Feature.Movers) ok = false;
+                if (!p.solid[k] || f == Feature.Ramp || f == Feature.Landing || f == Feature.Gap || f == Feature.Movers || f == Feature.Roadblock) ok = false;
             }
             if (ok) p.safePoints.Add(i);
         }
@@ -519,6 +536,11 @@ public static class ObstacleCourse
         root.SetParent(parent, false);
         foreach (Item item in p.items)
         {
+            if (item.type == ItemType.Barricade)
+            {
+                BuildBarricade(root, item, palette);
+                continue;
+            }
             var go = new GameObject(item.type.ToString());
             go.transform.SetParent(root, false);
             Quaternion rot = Quaternion.Euler(0f, item.yaw, 0f);
@@ -531,6 +553,10 @@ public static class ObstacleCourse
                     r.sharedMaterials = new[] { palette.Get("trunk"), palette.Get("checkerBlack") };
                     go.AddComponent<BoxCollider>().size = Vector3.one * 1.3f;
                     go.AddComponent<Rigidbody>().mass = 25f;
+                    // Při prudkém nárazu se bedna rozpadne na prkýnka
+                    var crate = go.AddComponent<Breakable>();
+                    crate.kind = Breakable.Kind.Crate;
+                    crate.breakSpeed = 9f;
                     break;
                 case ItemType.Barrel:
                     go.transform.SetPositionAndRotation(item.position + Vector3.up * 0.56f, rot);
@@ -575,6 +601,59 @@ public static class ObstacleCourse
                     go.AddComponent<BoostPad>().strength = item.param;
                     break;
             }
+        }
+    }
+
+    private static Mesh plankMesh, trestleMesh;
+
+    /// <summary>Dřevěná zábrana: dvě pruhovaná prkna na dvou kozách. Všechny díly se rozletí najednou.</summary>
+    private static void BuildBarricade(Transform root, Item item, TrackGenerator.IPalette palette)
+    {
+        float width = BarricadeWidth - 0.15f;
+        if (plankMesh == null)
+        {
+            var mb = new MeshBuilder(2);
+            mb.Box(0, Vector3.zero, new Vector3(1f, 0.3f, 0.1f));
+            // Bílé šikmé pruhy (v jednotkách délky prkna, prkno se pak natáhne na šířku zábrany)
+            for (int k = 0; k < 4; k++)
+            {
+                float x = -0.375f + k * 0.25f;
+                mb.Box(1, new Vector3(x, 0f, 0f), new Vector3(0.09f, 0.31f, 0.11f));
+            }
+            plankMesh = mb.ToMesh("BarricadePlank");
+            var tm = new MeshBuilder(1);
+            // Koza: dvě šikmé nohy a příčka
+            tm.Box(0, new Vector3(0f, 0.55f, 0.18f), new Vector3(0.1f, 1.15f, 0.1f), Quaternion.Euler(-12f, 0f, 0f));
+            tm.Box(0, new Vector3(0f, 0.55f, -0.18f), new Vector3(0.1f, 1.15f, 0.1f), Quaternion.Euler(12f, 0f, 0f));
+            tm.Box(0, new Vector3(0f, 0.45f, 0f), new Vector3(0.1f, 0.08f, 0.5f));
+            tm.ShadeVertical(0, 0f, 1.1f, 0.65f);
+            trestleMesh = tm.ToMesh("BarricadeTrestle");
+        }
+        Quaternion rot = Quaternion.Euler(0f, item.yaw, 0f);
+        Vector3 right = rot * Vector3.right;
+        var parts = new List<Breakable>();
+        Material[] plankMats = { palette.Get("curbA"), palette.Get("checkerWhite") };
+        foreach (float y in new[] { 0.6f, 1.0f })
+        {
+            Breakable plank = Breakable.Create("BarricadePlank", root, plankMesh, plankMats, item.position + Vector3.up * y, rot,
+                new Vector3(width, 1f, 1f), new Vector3(1f, 0.3f, 0.4f), Vector3.zero, Breakable.Kind.Plank);
+            parts.Add(plank);
+        }
+        foreach (float x in new[] { -0.42f, 0.42f })
+        {
+            Breakable trestle = Breakable.Create("BarricadeTrestle", root, trestleMesh, new[] { palette.Get("trunk") }, item.position + right * (x * width), rot,
+                Vector3.one, new Vector3(0.12f, 1.1f, 0.5f), new Vector3(0f, 0.55f, 0f), Breakable.Kind.Plank);
+            parts.Add(trestle);
+        }
+        Breakable[] group = parts.ToArray();
+        foreach (Breakable part in group)
+        {
+            part.group = group;
+            part.breakSpeed = 4f;
+            part.keepMomentum = 0.82f;
+            part.mass = 12f;
+            part.localNormal = Vector3.forward;
+            part.onRoadLifetime = 3f;
         }
     }
 

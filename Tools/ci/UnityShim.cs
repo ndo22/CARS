@@ -86,11 +86,15 @@ public class Mesh : Object { public Rendering.IndexFormat indexFormat; public Li
  public void SetVertices(List<Vector3> a){v=new List<Vector3>(a);} public List<Color> col; public void SetColors(List<Color> c){col=new List<Color>(c);} public Color[] colors => col.ToArray(); public void SetTriangles(List<int> a,int i){t[i]=new List<int>(a);} public void RecalculateNormals(){} public void RecalculateBounds(){} }
 public class Component : Object { public GameObject gameObject; public Transform transform=>gameObject.transform; public T GetComponent<T>() where T:Component=>gameObject.GetComponent<T>(); public T[] GetComponentsInChildren<T>(bool all=false) where T:Component=>new T[0]; }
 public class Behaviour : Component { public bool enabled=true; }
-public class MonoBehaviour : Behaviour {}
+public class MonoBehaviour : Behaviour { public Coroutine StartCoroutine(System.Collections.IEnumerator e)=>null; public static void Destroy(Object o, float t=0f){} }
+public class Coroutine {} public class YieldInstruction {} public class WaitForSeconds : YieldInstruction { public WaitForSeconds(float s){} }
+public static class Random { static System.Random r=new System.Random(1); public static float value=>(float)r.NextDouble(); public static float Range(float a,float b)=>a+(b-a)*value; public static int Range(int a,int b)=>a+r.Next(b-a);
+ public static Vector3 insideUnitSphere=>new Vector3(value*2-1,value*2-1,value*2-1)*0.5f; public static Quaternion rotation=>Quaternion.identity; }
 public class Transform : Component { public Transform parent; public Vector3 position, localPosition; public Quaternion rotation=Quaternion.identity, localRotation=Quaternion.identity;
  public void SetParent(Transform p,bool w){parent=p;} public void SetPositionAndRotation(Vector3 p,Quaternion r){position=p;rotation=r;}
  public System.Collections.IEnumerator GetEnumerator(){ foreach(var g in GameObject.All) if(g.transform.parent==this) yield return g.transform; }
- public Vector3 up=>rotation*Vector3.up; public Vector3 forward=>rotation*Vector3.forward; public Vector3 InverseTransformPoint(Vector3 p)=>p; public void Rotate(Vector3 a,float d,Space s){} }
+ public Vector3 up=>rotation*Vector3.up; public Vector3 forward=>rotation*Vector3.forward; public Vector3 right=>rotation*Vector3.right; public Vector3 localScale=Vector3.one; public Vector3 lossyScale=>localScale;
+ public Vector3 TransformDirection(Vector3 d)=>rotation*d; public void RotateAround(Vector3 p,Vector3 a,float d){} public Vector3 InverseTransformPoint(Vector3 p)=>p; public void Rotate(Vector3 a,float d,Space s){} }
 public class GameObject : Object { public static List<GameObject> All=new List<GameObject>(); public List<Component> comps=new List<Component>(); public Transform transform; public int layer; public bool isStatic; public bool active=true;
  public GameObject(string n,params Type[] t){name=n;transform=new Transform();transform.gameObject=this;comps.Add(transform);All.Add(this);}
  public T AddComponent<T>() where T:Component{var c=(T)Activator.CreateInstance(typeof(T));c.gameObject=this;comps.Add(c);return c;}
@@ -98,7 +102,7 @@ public class GameObject : Object { public static List<GameObject> All=new List<G
  public void SetActive(bool a){active=a;} public static GameObject Find(string n){ foreach(var g in All) if(g.name==n) return g; return null; } }
 public class MeshFilter : Component { public Mesh sharedMesh; }
 public class MeshRenderer : Component { public Material sharedMaterial{get=>sharedMaterials[0];set=>sharedMaterials=new[]{value};} public Material[] sharedMaterials; public Rendering.ShadowCastingMode shadowCastingMode; }
-public class Collider : Component { public Rigidbody attachedRigidbody; } public class MeshCollider : Collider { public Mesh sharedMesh; }
+public class Collider : Component { public Rigidbody attachedRigidbody; public bool enabled=true; } public class MeshCollider : Collider { public Mesh sharedMesh; }
 public class BoxCollider : Collider { public Vector3 center,size; public bool isTrigger; }
 public class CapsuleCollider : Collider { public float radius, height; }
 public enum CollisionDetectionMode { Discrete, Continuous } public enum RigidbodyInterpolation { None, Interpolate }
@@ -111,7 +115,7 @@ public class WheelCollider : Collider { public float radius,mass,suspensionDista
  public bool GetGroundHit(out WheelHit h){h=new WheelHit();return false;} public void GetWorldPose(out Vector3 p,out Quaternion q){p=transform.position;q=transform.rotation;} }
 public enum LightType { Spot, Directional, Point } public enum LightShadows { None, Hard, Soft }
 public class Light : Behaviour { public LightType type; public float range, spotAngle, intensity; public Color color; public LightShadows shadows; }
-public class Collision { public Vector3 relativeVelocity; public int contactCount; public ContactPoint GetContact(int i)=>new ContactPoint(); }
+public class Collision { public Rigidbody rigidbody; public Vector3 relativeVelocity; public int contactCount; public ContactPoint GetContact(int i)=>new ContactPoint(); }
 public static class LayerMask { public static int NameToLayer(string n)=>10; public static int GetMask(params string[] n)=>0; }
 public static class Application { public static string persistentDataPath => System.IO.Path.GetTempPath(); public static bool isMobilePlatform => false; }
 public static class Debug { public static void Log(object o){} public static void LogWarning(object o){ System.Console.WriteLine("WARN "+o); } public static void LogError(object o){ System.Console.WriteLine("ERR "+o); } }

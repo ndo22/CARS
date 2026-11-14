@@ -209,6 +209,67 @@ public class AudioTests
     }
 }
 
+public class BreakableTests
+{
+    [Test]
+    public void BreakableBarriersAreOnTheOutsideOfCorners()
+    {
+        for (int t = 0; t < TrackLibrary.All.Length; t++)
+        {
+            TrackGenerator.TrackResult track = TrackGenerator.SampleTrack(TrackLibrary.Settings(TrackLibrary.All[t]));
+            int[] sides = TrackGenerator.BreakableBarrierSides(track);
+            int n = sides.Length, count = 0;
+            for (int i = 0; i < n; i++)
+            {
+                if (sides[i] == 0) continue;
+                count++;
+                Assert.IsTrue(i > 8 && i < n - 8, TrackLibrary.All[t].name + ": breakable barrier next to the start");
+            }
+            Assert.Greater(count, 0, TrackLibrary.All[t].name + ": no breakable barriers");
+            Assert.Less(count, n * 0.4f, TrackLibrary.All[t].name + ": too many breakable pieces");
+
+            // Zničitelné svodidlo je na vnější straně zatáčky, kterou auto právě projelo
+            for (int i = 0; i < n; i++)
+            {
+                if (sides[i] == 0) continue;
+                Vector3 before = track.Forward(i - 5), after = track.Forward(i + 1);
+                if (Vector3.Angle(before, after) < 8f) continue;
+                int outer = Vector3.Cross(before, after).y > 0f ? -1 : 1;
+                Assert.AreEqual(outer, sides[i], TrackLibrary.All[t].name + " segment " + i);
+            }
+        }
+    }
+
+    [Test]
+    public void RoadblocksSpanTheRoadWithAWoodenMiddle()
+    {
+        int roadblocks = 0;
+        for (int level = 1; level <= ChaseLevels.Count; level++)
+        {
+            ObstacleCourse.Plan p = ObstacleCourse.Generate(level);
+            for (int k = 0; k + 2 < p.items.Count; k++)
+            {
+                ObstacleCourse.Item a = p.items[k], b = p.items[k + 1], c = p.items[k + 2];
+                bool isBlock = (a.type == ObstacleCourse.ItemType.Barricade || a.type == ObstacleCourse.ItemType.Block)
+                    && b.type == ObstacleCourse.ItemType.Barricade
+                    && (c.type == ObstacleCourse.ItemType.Barricade || c.type == ObstacleCourse.ItemType.Block)
+                    && Vector3.Distance(a.position, c.position) > 7f;
+                if (!isBlock) continue;
+                roadblocks++;
+                // Prostřední zábrana je vždy dřevěná (policie jede středem), betonová jen od 7. levelu
+                if (level < 7)
+                {
+                    Assert.AreEqual(ObstacleCourse.ItemType.Barricade, a.type);
+                    Assert.AreEqual(ObstacleCourse.ItemType.Barricade, c.type);
+                }
+                Assert.IsFalse(a.type == ObstacleCourse.ItemType.Block && c.type == ObstacleCourse.ItemType.Block, "level " + level);
+                k += 2;
+            }
+        }
+        Assert.Greater(roadblocks, 0);
+    }
+}
+
 public class ChaseCourseTests
 {
     [Test]

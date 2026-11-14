@@ -77,6 +77,9 @@ Hra startuje scénou `LowPolyTrack` – titulní menu: **QUICK RACE**, **CHAMPIO
 Druhý herní režim (titulní menu → POLICE CHASE): **překážková dráha ze startu do cíle**, vyvýšená nad krajinou
 na pilířích, a za tebou jede **policie**. Když se policejní auto udrží těsně u tebe, plní se ukazatel BUSTED.
 
+- **Zátarasy přes celou silnici** ze tří dřevěných zábran – dají se prorazit, ale stojí to rychlost. Od 7. levelu je
+  jedna krajní zábrana betonová. **Bedny se při prudkém nárazu rozpadnou** na prkýnka, kužely a sudy odletí.
+  Svodidla na vyvýšené dráze zůstávají pevná (proražení by znamenalo pád).
 - **15 levelů**, každý se odemkne dokončením předchozího. Prostředí se střídají (louka, poušť, sníh, pobřeží, noční město).
 - Na dráze: **skokanky přes mezery** (až 24 m), pole beden a sudů, slalom kuželů, zúžené úseky bez svodidel,
   posuvné zátarasy, **boost pady**. Ve vzduchu se auto samo srovnává, plynem a brzdou nakláníš předek.
@@ -90,6 +93,7 @@ policejní AI v `ChaseAI`, hra v `LowPolyRaceBootstrap.Chase.cs`.
 
 ![Dráha](Docs/chase-course.png)
 ![Speciální auta](Docs/chase-cars.png)
+![Zničitelné objekty](Docs/breakables.png)
 
 ### Další funkce
 
@@ -98,8 +102,12 @@ policejní AI v `ChaseAI`, hra v `LowPolyRaceBootstrap.Chase.cs`.
 - **Editor tratí** (titulní menu → TRACK EDITOR): body se klikají a táhnou myší, kolečkem se mění výška,
   trať se průběžně kontroluje (ostré zatáčky, křížení, stoupání). Uložené tratě jsou v seznamu tratí a dá se na nich hned jet.
 - **Poškození**: promáčknutí v místě nárazu, odletující úlomky, kouř z motoru, nižší maximální rychlost (vypínatelné).
+- **Zničitelná svodidla** (jako v původní hře): na vnější straně ostrých zatáček, od vrcholu kousek za výjezd.
+  Prudký náraz díl utrhne a auto projede s většinou rychlosti, slabší nárazy díl jen nakloní (a sčítají se).
+  Za svodidly jsou stohy pneumatik, které se dají rozhodit. Utržené díly na silnici se po chvíli propadnou,
+  v trávě zůstanou ležet déle – v dalším kole je svodidlo pořád pryč. Na rovinkách zůstávají pevná svodidla.
 - **Plynulé podmínky**: DUSK (během závodu se setmí) a CHANGING (začne pršet, silnice zvlhne a klouže).
-- **Úspěchy** (12) s oznámením ve hře; některé odemykají **kosmetiku**: vzory laku (pruhy, pásy, šachovnice),
+- **Úspěchy** (17, např. WRECKING CREW za 100 proražených objektů) s oznámením ve hře; některé odemykají **kosmetiku**: vzory laku (pruhy, pásy, šachovnice),
   barvy disků, vlastní startovní číslo.
 - **Dotykové ovládání** a ovládání náklonem pro mobil (Android: orientace na šířku, ID `com.lowpoly.cars`).
 - **Přístupnost**: asistence řízení a brzdění, velikost UI, vysoký kontrast, návod při prvním závodě.

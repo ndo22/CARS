@@ -148,7 +148,7 @@ public static class TrackGenerator
                 if (isCorner[Mod(i + k, n)]) curb[i] = true;
 
         BuildRoad(parent, track, curb, s, palette, rng);
-        BuildBarriers(parent, track, s, palette);
+        BuildBarriers(parent, track, s, palette, BreakableBarrierSides(track));
         BuildStartGate(parent, track, s, palette);
         BuildTrackside(parent, track, isCorner, s, palette, rng);
         if (theme.night || s.forceLamps) BuildLamps(parent, track, s, palette);
@@ -160,6 +160,9 @@ public static class TrackGenerator
 
     /// <summary>Body středové čáry tratě (pro náhled v editoru).</summary>
     public static Vector3[] SamplePath(TrackSettings s) => Sample(s).centers;
+
+    /// <summary>Navzorkovaná trať bez stavění geometrie (pro testy a náhledy).</summary>
+    public static TrackResult SampleTrack(TrackSettings s) => Sample(s);
 
     /// <summary>Délka tratě v metrech (bez stavění geometrie) - pro výběr tratě v menu.</summary>
     public static float Length(TrackSettings s) => Sample(s).length;
@@ -304,12 +307,53 @@ public static class TrackGenerator
 
     // ---------------------------------------------------------------- svodidla
 
-    private static void BuildBarriers(Transform parent, TrackResult t, TrackSettings s, IPalette palette)
+    /// <summary>
+    /// Na které straně je u segmentu zničitelné svodidlo: −1 vlevo, +1 vpravo, 0 nikde.
+    /// Jen na vnější straně výrazných zatáček, od vrcholu zatáčky kousek za její výjezd - tam auta vynáší
+    /// a do svodidel opravdu naráží. Ne u startu.
+    /// </summary>
+    public static int[] BreakableBarrierSides(TrackResult t)
+    {
+        const float SharpCornerAngle = 20f; // změna směru na 6 segmentech (~24 m), tj. poloměr pod ~70 m
+        int n = t.centers.Length;
+        var sharp = new int[n];
+        for (int i = 0; i < n; i++)
+        {
+            float angle = Vector3.Angle(t.Forward(i - 3), t.Forward(i + 3));
+            if (angle < SharpCornerAngle) continue;
+            float turn = Vector3.Cross(t.Forward(i - 3), t.Forward(i + 3)).y;
+            sharp[i] = turn > 0f ? -1 : 1; // vnější strana zatáčky
+        }
+        const int maxPieces = 10, pastExit = 3;
+        var result = new int[n];
+        for (int a = 0; a < n; a++)
+        {
+            if (sharp[a] == 0 || (a > 0 && sharp[a - 1] == sharp[a])) continue;
+            int b = a;
+            while (b + 1 < n && sharp[b + 1] == sharp[a]) b++;
+            // Od vrcholu zatáčky do kousku za výjezdem
+            int from = a + (b - a) / 2 - 1;
+            int to = Mathf.Min(b + pastExit, from + maxPieces - 1);
+            for (int i = from; i <= to; i++)
+            {
+                if (sharp[Mod(i, n)] == -sharp[a]) break; // esíčko: další zatáčka na druhou stranu
+                if (result[Mod(i, n)] == 0) result[Mod(i, n)] = sharp[a];
+            }
+            a = b;
+        }
+        for (int k = -8; k <= 8; k++) result[Mod(k, n)] = 0;
+        return result;
+    }
+
+    private static Mesh barrierPieceMesh;
+
+    private static void BuildBarriers(Transform parent, TrackResult t, TrackSettings s, IPalette palette, int[] breakable)
     {
         var mb = new MeshBuilder(2);
         int n = t.centers.Length;
         float offset = s.roadWidth * 0.5f + s.barrierOffset;
         const float height = 1.1f, thickness = 0.7f;
+        Transform pieces = null;
 
         for (int side = -1; side <= 1; side += 2)
         {
@@ -322,6 +366,32 @@ public static class TrackGenerator
 
                 Vector3 in0 = c0 + r0 * offset, in1 = c1 + r1 * offset;
                 Vector3 out0 = c0 + r0 * (offset + thickness), out1 = c1 + r1 * (offset + thickness);
+
+                if (breakable != null && breakable[i] == side)
+                {
+                    // Zničitelný díl: samostatný objekt, který se při prudkém nárazu utrhne
+                    if (pieces == null)
+                    {
+                        pieces = new GameObject("BreakableBarriers").transform;
+                        pieces.SetParent(parent, false);
+                    }
+                    if (barrierPieceMesh == null)
+                    {
+                        var pm = new MeshBuilder(1);
+                        pm.Box(0, Vector3.zero, Vector3.one);
+                        pm.ShadeVertical(0, -0.5f, 0.5f, 0.62f);
+                        barrierPieceMesh = pm.ToMesh("BarrierPiece");
+                    }
+                    Vector3 m0 = (in0 + out0) * 0.5f, m1 = (in1 + out1) * 0.5f;
+                    Vector3 along = m1 - m0;
+                    if (along.sqrMagnitude < 0.01f) continue;
+                    Vector3 center = (m0 + m1) * 0.5f + up * 0.5f;
+                    Quaternion rot = Quaternion.LookRotation(along, Vector3.up);
+                    // Lokální osa X dílu má mířit k trati (stejně jako -r0), aby šlo poznat stranu nárazu
+                    Breakable.Create("BarrierPiece", pieces, barrierPieceMesh, new[] { palette.Get(sub == 0 ? "barrierA" : "barrierB") },
+                        center, rot, new Vector3(thickness, height + 0.3f, along.magnitude + 0.08f), Vector3.one, Vector3.zero, Breakable.Kind.Barrier);
+                    continue;
+                }
 
                 Vector3 towardsRoad = -(r0 + r1);
                 mb.QuadFacing(sub, in0, in1, in1 + up, in0 + up, towardsRoad);
@@ -457,19 +527,25 @@ public static class TrackGenerator
             mb.TriDoubleSided(flag, top, top + dir * 2.2f - Vector3.up * 0.4f, top + dir * 2.4f + Vector3.up * 0.1f);
         }
 
-        // --- Stohy pneumatik na vnější straně zatáček
+        // --- Stohy pneumatik na vnější straně zatáček (dají se rozhodit, když auto prorazí svodidlo)
+        Transform tires = null;
+        Material[] tireMaterials = { palette.Get("tire"), palette.Get("curbB") };
         for (int i = 0; i < n; i += 3)
         {
             if (!isCorner[i]) continue;
             float turn = Vector3.Cross(t.Forward(i - 2), t.Forward(i + 2)).y;
             float side = turn > 0f ? -1f : 1f; // vnější strana zatáčky
             Vector3 basePos = t.Center(i) + t.Right(i) * side * (barrier + 1.4f) + Vector3.down * 0.4f;
-            for (int stack = -1; stack <= 1; stack += 2)
+            if (tires == null)
             {
-                Vector3 p = basePos + t.Forward(i) * (stack * 0.6f);
-                for (int level = 0; level < 3; level++)
-                    mb.Cylinder(level == 2 ? tireTop : tire, p + Vector3.up * (level * 0.32f), 0.55f, 0.55f, 0.32f, 8, stack * 0.2f);
+                tires = new GameObject("TireStacks").transform;
+                tires.SetParent(parent, false);
             }
+            Breakable b = Breakable.Create("TireStack", tires, TireStackMesh(), tireMaterials, basePos, Quaternion.LookRotation(t.Forward(i), Vector3.up),
+                Vector3.one, new Vector3(1.1f, 0.96f, 2.3f), new Vector3(0f, 0.48f, 0f), Breakable.Kind.Loose);
+            b.breakSpeed = 3f;
+            b.keepMomentum = 0.85f;
+            b.mass = 40f;
         }
 
         // --- Šipky před zatáčkami (na vnější straně, čelem k přijíždějícímu autu)
@@ -1240,6 +1316,28 @@ public static class TrackGenerator
             int neon = Rand(rng) < 0.5f ? neonA : neonB;
             mb.Box(neon, b + Vector3.up * (h + 2.2f) + Vector3.forward * (d * 0.5f - 0.5f), new Vector3(w * 0.7f, 2.4f, 0.3f));
         }
+    }
+
+    private static Mesh tireStackMesh;
+
+    /// <summary>Dva stohy po třech pneumatikách (v prostoru objektu, základna v y = 0).</summary>
+    private static Mesh TireStackMesh()
+    {
+        if (tireStackMesh != null) return tireStackMesh;
+        var mb = new MeshBuilder(2);
+        for (int stack = -1; stack <= 1; stack += 2)
+            for (int level = 0; level < 3; level++)
+                mb.Cylinder(level == 2 ? 1 : 0, new Vector3(0f, level * 0.32f, stack * 0.6f), 0.55f, 0.55f, 0.32f, 8, stack * 0.2f);
+        mb.ShadeVertical(0, 0f, 0.96f, 0.7f);
+        tireStackMesh = mb.ToMesh("TireStack");
+        return tireStackMesh;
+    }
+
+    /// <summary>Vodorovná vzdálenost bodu od osy trati.</summary>
+    public static float DistanceFromCenter(TrackResult t, Vector3 p)
+    {
+        NearestOnTrack(t, p.x, p.z, out float distance, out _);
+        return distance;
     }
 
     // ---------------------------------------------------------------- pomocné

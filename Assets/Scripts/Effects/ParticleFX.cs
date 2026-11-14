@@ -20,6 +20,7 @@ public class ParticleFX : MonoBehaviour
         fx.dust = MakeSystem(go.transform, "Dust", cube, dustMat, 1.0f, 600);
         fx.sparks = MakeSystem(go.transform, "Sparks", cube, sparkMat, 0.5f, 200);
         fx.splash = MakeSystem(go.transform, "Splash", cube, splashMat, 0.5f, 400);
+        Breakable.Smashed += fx.Sparks;
         return fx;
     }
 
@@ -115,6 +116,7 @@ public class ParticleFX : MonoBehaviour
 
     private void OnDestroy()
     {
+        Breakable.Smashed -= Sparks;
         if (Instance == this) Instance = null;
     }
 }
