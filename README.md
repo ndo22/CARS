@@ -133,6 +133,8 @@ policejní AI v `ChaseAI`, hra v `LowPolyRaceBootstrap.Chase.cs`.
 Novou trať přidáš jedním záznamem v `TrackLibrary.All`.
 
 ![Menu](Docs/lowpoly-menu.png)
+![Garáž](Docs/menu-garage.png)
+![Levely POLICE CHASE](Docs/menu-chase.png)
 ![Závod](Docs/lowpoly-hud.png)
 ![Tratě](Docs/lowpoly-tracks.png)
 ![Neon City](Docs/lowpoly-city.png)

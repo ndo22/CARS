@@ -562,13 +562,13 @@ public partial class LowPolyRaceBootstrap
             LowPolyUI.Place(card, new Vector2(0f, 1f), new Vector2(30f, y), new Vector2(500f, 100f));
             Text n = LowPolyUI.Label(card, LowPolyCarFactory.StyleNames[(int)style], 32, TextAnchor.UpperLeft, has ? LowPolyUI.Accent : Color.white, "Name");
             LowPolyUI.Place(n.rectTransform, new Vector2(0f, 1f), new Vector2(20f, -10f), new Vector2(460f, 40f));
-            string state = has ? "UNLOCKED" : $"FINISH {need} LEVELS   ({Mathf.Min(ChaseLevels.Completed, need)} OF {need})";
+            string state = has ? "UNLOCKED" : $"FINISH {need} LEVELS   -   {Mathf.Min(ChaseLevels.Completed, need)} OF {need} DONE";
             Text st = LowPolyUI.Label(card, state, 20, TextAnchor.UpperLeft, Dim, "State", true);
             LowPolyUI.Place(st.rectTransform, new Vector2(0f, 1f), new Vector2(20f, -58f), new Vector2(460f, 28f));
             y -= 116f;
         }
 
-        Text keys = LowPolyUI.Label(root, "THROTTLE AND BRAKE TILT THE CAR IN THE AIR   |   R RETURNS YOU TO THE ROAD (+3 S)", 18, TextAnchor.LowerLeft, Dim, "Keys", true);
+        Text keys = LowPolyUI.Label(root, "THROTTLE AND BRAKE TILT THE CAR IN THE AIR   |   R RETURNS YOU TO THE ROAD   -   3 S PENALTY", 18, TextAnchor.LowerLeft, Dim, "Keys", true);
         LowPolyUI.Place(keys.rectTransform, new Vector2(0f, 0f), new Vector2(300f, 60f), new Vector2(1300f, 30f));
         Image back = LowPolyUI.Button(root, "< BACK", 28, () => ShowScreen(RaceSetup.Screen.Title));
         LowPolyUI.Place((RectTransform)back.transform, new Vector2(0f, 0f), new Vector2(40f, 40f), new Vector2(220f, 70f));

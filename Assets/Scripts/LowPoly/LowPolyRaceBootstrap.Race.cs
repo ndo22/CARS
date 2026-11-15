@@ -596,7 +596,7 @@ public partial class LowPolyRaceBootstrap
             bool human = r is Player;
             string t = finishTimes.TryGetValue(r, out float ft) ? TimeFormat.FormatRacing(ft) : "RUNNING";
             int points = championship && i < Championship.Points.Length ? Championship.Points[i] : 0;
-            ResultRow(panel, $"{i + 1}.  {r.DisplayName}", t, championship ? $"+{points}" : "", leftX, y, human ? LowPolyUI.Accent : Color.white);
+            ResultRow(panel, $"{i + 1}.  {r.DisplayName}", t, championship ? $"{points} PTS" : "", leftX, y, human ? LowPolyUI.Accent : Color.white);
             y -= 40f;
         }
         y -= 10f;

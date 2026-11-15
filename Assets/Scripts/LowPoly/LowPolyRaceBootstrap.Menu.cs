@@ -49,6 +49,13 @@ public partial class LowPolyRaceBootstrap
         }
         if (previewCar == null) SpawnPreviewCar();
         PlayMusic(ProceduralAudio.MenuMusic);
+        // Na obrazovce levelů je střed zakrytý mřížkou - auto posunout do volného místa vlevo dole
+        var orbit = menuCamera.GetComponent<OrbitCamera>();
+        bool levels = screen == RaceSetup.Screen.Levels;
+        orbit.distance = levels ? 16f : 10.5f;
+        orbit.height = levels ? 4.9f : 3.2f;
+        orbit.screenOffset = levels ? 4.4f : 0f;
+        orbit.verticalOffset = levels ? 5.6f : 0f;
 
         switch (screen)
         {
@@ -89,7 +96,8 @@ public partial class LowPolyRaceBootstrap
             LowPolyUI.Place((RectTransform)b.transform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(x + i * (width + 10f), y), new Vector2(width, height));
             group.Add(b, label, LowPolyUI.ButtonColor);
         }
-        group.Select(Mathf.Max(0, selected));
+        // Vybraná hodnota mimo tuto řadu (např. auto z jiné řady) = nic nezvýrazňovat
+        group.Select(selected >= 0 && selected < labels.Length ? selected : -1);
         return group;
     }
 
@@ -397,7 +405,7 @@ public partial class LowPolyRaceBootstrap
 
         if (RaceSetup.mode == RaceSetup.Mode.QuickRace)
         {
-            Header(right, "PLAYERS   (SPLIT SCREEN)", y);
+            Header(right, "PLAYERS   |   SPLIT SCREEN", y);
             ChoiceRow(right, 30f, y - 34f, new[] { "1", "2" }, RaceSetup.players - 1, 72f, i =>
             {
                 RaceSetup.players = i + 1;
@@ -422,7 +430,7 @@ public partial class LowPolyRaceBootstrap
                     p2color.color = CarColors[RaceSetup.carColor2];
                 });
                 LowPolyUI.Place((RectTransform)p2color.transform, new Vector2(0f, 1f), new Vector2(430f, y - 34f), new Vector2(48f, 48f));
-                Text keys = LowPolyUI.Label(right, "P2 KEYS: ARROWS, RIGHT CTRL DRIFT, RIGHT SHIFT NITRO, ENTER RESET", 16, TextAnchor.UpperLeft, Dim, "P2Keys", true);
+                Text keys = LowPolyUI.Label(right, "P2 KEYS   ARROWS, RIGHT CTRL DRIFT, RIGHT SHIFT NITRO, ENTER RESET", 16, TextAnchor.UpperLeft, Dim, "P2Keys", true);
                 LowPolyUI.Place(keys.rectTransform, new Vector2(0f, 1f), new Vector2(30f, y - 88f), new Vector2(540f, 22f));
             }
             y -= 120f;
@@ -594,7 +602,7 @@ public partial class LowPolyRaceBootstrap
         // --- ovládání a přístupnost
         RectTransform right = LowPolyUI.Panel(root, "ControlsPanel", LowPolyUI.PanelColor);
         LowPolyUI.Place(right, new Vector2(1f, 1f), new Vector2(-40f, -150f), new Vector2(660f, 860f));
-        Header(right, "CONTROLS   (CLICK TO CHANGE)", -18f);
+        Header(right, "CONTROLS   |   CLICK TO CHANGE", -18f);
         Text padHeader = LowPolyUI.Label(right, "PAD", 20, TextAnchor.UpperRight, Dim, "PadHeader");
         LowPolyUI.Place(padHeader.rectTransform, new Vector2(1f, 1f), new Vector2(-30f, -24f), new Vector2(120f, 30f));
         float cy = -56f;

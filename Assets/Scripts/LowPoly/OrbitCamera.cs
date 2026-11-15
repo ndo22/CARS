@@ -10,6 +10,8 @@ public class OrbitCamera : MonoBehaviour
     public Vector3 lookOffset = new Vector3(0f, 0.8f, 0f);
     [Tooltip("Posun cíle do strany, aby auto nebylo schované za menu.")]
     public float screenOffset = 0f;
+    [Tooltip("Posun kamery nahoru, aby auto bylo níž na obrazovce (pod mřížkou levelů).")]
+    public float verticalOffset = 0f;
 
     private float angle = 35f;
 
@@ -21,6 +23,6 @@ public class OrbitCamera : MonoBehaviour
         Vector3 pivot = target.position + lookOffset;
         transform.position = pivot + rot * new Vector3(0f, height, -distance);
         transform.LookAt(pivot, Vector3.up);
-        transform.position += transform.right * screenOffset;
+        transform.position += transform.right * screenOffset + transform.up * verticalOffset;
     }
 }

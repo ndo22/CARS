@@ -101,7 +101,7 @@ public class TrackEditor : MonoBehaviour
         LowPolyUI.Place(nameText.rectTransform, new Vector2(0f, 1f), new Vector2(24f, -76f), new Vector2(480f, 34f));
 
         Text help = LowPolyUI.Label(panel,
-            "LEFT CLICK  SELECT, DRAG OR ADD POINT\nRIGHT CLICK  DELETE POINT\nWHEEL OR Q E  POINT HEIGHT\nWASD  MOVE VIEW     + -  ZOOM\nGREEN POINT  START, DRIVING TOWARDS 2ND",
+            "LEFT CLICK  SELECT, DRAG OR ADD POINT\nRIGHT CLICK  DELETE POINT\nWHEEL OR Q E  POINT HEIGHT\nWASD  MOVE VIEW     PLUS MINUS  ZOOM\nGREEN POINT  START, DRIVING TOWARDS 2ND",
             18, TextAnchor.UpperLeft, new Color(1f, 1f, 1f, 0.75f), "Help", true);
         LowPolyUI.Place(help.rectTransform, new Vector2(0f, 1f), new Vector2(24f, -124f), new Vector2(480f, 140f));
 
