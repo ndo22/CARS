@@ -1,6 +1,7 @@
 namespace UnityEngine.UI {
   public class Graphic : UnityEngine.MonoBehaviour { public UnityEngine.Color color; public bool raycastTarget; public UnityEngine.Canvas canvas => null; public UnityEngine.RectTransform rectTransform => null; }
-  public class Text : Graphic { public string text; public UnityEngine.Font font; public int fontSize; public UnityEngine.FontStyle fontStyle; public UnityEngine.TextAnchor alignment; public UnityEngine.HorizontalWrapMode horizontalOverflow; public UnityEngine.VerticalWrapMode verticalOverflow; }
+  public class Text : Graphic { public string text; public UnityEngine.Font font; public int fontSize; public UnityEngine.FontStyle fontStyle; public UnityEngine.TextAnchor alignment; public UnityEngine.HorizontalWrapMode horizontalOverflow; public UnityEngine.VerticalWrapMode verticalOverflow;
+    public float preferredWidth => 0f; public float pixelsPerUnit => 1f; public UnityEngine.TextGenerator cachedTextGeneratorForLayout => null; public UnityEngine.TextGenerationSettings GetGenerationSettings(UnityEngine.Vector2 extents) => default(UnityEngine.TextGenerationSettings); }
   public class Image : Graphic { public enum Type { Simple, Sliced } public Sprite sprite; public Type type; }
   public class RawImage : Graphic { public UnityEngine.Texture texture; }
   public class Shadow : UnityEngine.MonoBehaviour { public UnityEngine.Color effectColor; public UnityEngine.Vector2 effectDistance; }

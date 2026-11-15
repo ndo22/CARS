@@ -170,10 +170,9 @@ public partial class LowPolyRaceBootstrap
     private void BuildTitleScreen()
     {
         Transform root = menuCanvas.transform;
-        Text title = LowPolyUI.Label(root, "LOW POLY", 120, TextAnchor.UpperLeft, Color.white, "Title");
-        LowPolyUI.Place(title.rectTransform, new Vector2(0f, 1f), new Vector2(48f, -50f), new Vector2(900f, 134f));
-        Text subtitle = LowPolyUI.Label(root, "RACING", 55, TextAnchor.UpperLeft, LowPolyUI.Accent, "Subtitle");
-        LowPolyUI.Place(subtitle.rectTransform, new Vector2(0f, 1f), new Vector2(54f, -174f), new Vector2(800f, 60f));
+        BuildLogo(root, new Vector2(48f, -44f), 130);
+        Text subtitle = LowPolyUI.Label(root, "COMPLETELY ACCURATE RACING SIMULATOR", 30, TextAnchor.UpperLeft, LowPolyUI.Accent, "Subtitle");
+        LowPolyUI.Place(subtitle.rectTransform, new Vector2(0f, 1f), new Vector2(54f, -184f), new Vector2(1000f, 40f));
 
         string[] labels = { "QUICK RACE", "POLICE CHASE", "CHAMPIONSHIP", "TIME TRIAL", "TRACK EDITOR", "ACHIEVEMENTS", "CLASSIC TRACK", "SETTINGS", "QUIT" };
         Action[] actions =
@@ -203,6 +202,45 @@ public partial class LowPolyRaceBootstrap
         Text hint = LowPolyUI.Label(root, "WASD DRIVE   SPACE DRIFT   SHIFT NITRO   R RESET   C CAMERA   F1 TUNING", 18,
             TextAnchor.LowerRight, Dim, "Controls");
         LowPolyUI.Place(hint.rectTransform, new Vector2(1f, 0f), new Vector2(-40f, 40f), new Vector2(1100f, 30f));
+    }
+
+    /// <summary>
+    /// Logo C.A.R.S: tučná písmena a žluté čtverečky místo teček (tučné Aquire tečku nemá).
+    /// Čtvereček sedí na účaří - spodní hraně vygenerovaného písmene.
+    /// </summary>
+    private static void BuildLogo(Transform root, Vector2 topLeft, int size)
+    {
+        RectTransform logo = LowPolyUI.Empty(root, "Logo");
+        LowPolyUI.Place(logo, new Vector2(0f, 1f), topLeft, new Vector2(1000f, size * 1.2f));
+        const string letters = "CARS";
+        float x = 0f, dot = size * 0.15f, gap = size * 0.05f;
+        for (int i = 0; i < letters.Length; i++)
+        {
+            Text letter = LowPolyUI.Label(logo, letters[i].ToString(), size, TextAnchor.UpperLeft, Color.white, "Letter" + letters[i]);
+            float width = letter.preferredWidth;
+            LowPolyUI.Place(letter.rectTransform, new Vector2(0f, 1f), new Vector2(x, 0f), new Vector2(width + 4f, size * 1.2f));
+            x += width;
+            if (i == letters.Length - 1) break;
+
+            float baseline = GlyphBottom(letter, size);
+            var go = new GameObject("Dot", typeof(RectTransform));
+            go.transform.SetParent(logo, false);
+            go.AddComponent<Image>().color = LowPolyUI.Accent;
+            go.AddComponent<Shadow>().effectColor = new Color(0f, 0f, 0f, 0.55f);
+            LowPolyUI.Place((RectTransform)go.transform, new Vector2(0f, 1f), new Vector2(0f, 0f), new Vector2(x + gap, baseline), new Vector2(dot, dot));
+            x += gap * 2f + dot;
+        }
+    }
+
+    /// <summary>Spodní hrana písmene v souřadnicích jeho obdélníku (od horního okraje, záporně).</summary>
+    private static float GlyphBottom(Text text, int size)
+    {
+        TextGenerator generator = text.cachedTextGeneratorForLayout;
+        generator.Populate(text.text, text.GetGenerationSettings(text.rectTransform.rect.size));
+        float min = float.MaxValue;
+        foreach (UIVertex v in generator.verts) min = Mathf.Min(min, v.position.y);
+        if (min == float.MaxValue || text.pixelsPerUnit <= 0f) return -size * 0.8f;
+        return min / text.pixelsPerUnit;
     }
 
     private void OpenSetup(RaceSetup.Mode mode)

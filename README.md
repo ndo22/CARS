@@ -1,4 +1,4 @@
-# CARS
+# C.A.R.S – Completely Accurate Racing Simulator
 
 Závodní hra v Unity (2021.3): hráč proti počítači na okruhu s checkpointy, měřením časů kol a tabulkou nejlepších časů.
 
