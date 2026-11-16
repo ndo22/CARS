@@ -63,6 +63,7 @@ public partial class LowPolyRaceBootstrap
             case RaceSetup.Screen.Settings: BuildSettingsScreen(); break;
             case RaceSetup.Screen.Achievements: BuildAchievementsScreen(); break;
             case RaceSetup.Screen.Levels: BuildLevelsScreen(); break;
+            case RaceSetup.Screen.Multiplayer: BuildMultiplayerScreen(); break;
             default: BuildTitleScreen(); break;
         }
     }
@@ -174,11 +175,12 @@ public partial class LowPolyRaceBootstrap
         Text subtitle = LowPolyUI.Label(root, "COMPLETELY ACCURATE RACING SIMULATOR", 30, TextAnchor.UpperLeft, LowPolyUI.Accent, "Subtitle");
         LowPolyUI.Place(subtitle.rectTransform, new Vector2(0f, 1f), new Vector2(54f, -184f), new Vector2(1000f, 40f));
 
-        string[] labels = { "QUICK RACE", "POLICE CHASE", "CHAMPIONSHIP", "TIME TRIAL", "TRACK EDITOR", "ACHIEVEMENTS", "CLASSIC TRACK", "SETTINGS", "QUIT" };
+        string[] labels = { "QUICK RACE", "POLICE CHASE", "MULTIPLAYER", "CHAMPIONSHIP", "TIME TRIAL", "TRACK EDITOR", "ACHIEVEMENTS", "CLASSIC TRACK", "SETTINGS", "QUIT" };
         Action[] actions =
         {
             () => OpenSetup(RaceSetup.Mode.QuickRace),
             () => ShowScreen(RaceSetup.Screen.Levels),
+            () => { Multiplayer.ResetMatch(); RaceSetup.mode = RaceSetup.Mode.Multiplayer; ShowScreen(RaceSetup.Screen.Multiplayer); },
             () => OpenSetup(RaceSetup.Mode.Championship),
             () => OpenSetup(RaceSetup.Mode.TimeTrial),
             () => ShowScreen(RaceSetup.Screen.Editor),
@@ -269,7 +271,7 @@ public partial class LowPolyRaceBootstrap
             timeTrial ? "RACE YOUR OWN GHOST" : "PICK A TRACK AND GO", 24, TextAnchor.UpperLeft, LowPolyUI.Accent, "Subtitle");
         LowPolyUI.Place(sub.rectTransform, new Vector2(0f, 1f), new Vector2(52f, -112f), new Vector2(900f, 30f));
 
-        BuildTrackList(root, championship);
+        BuildTrackList(root, championship, RaceSetup.Screen.Setup);
 
         // --- pravý panel se záložkami
         RectTransform right = LowPolyUI.Panel(root, "SetupPanel", LowPolyUI.PanelColor);
@@ -300,7 +302,7 @@ public partial class LowPolyRaceBootstrap
         LowPolyUI.Place((RectTransform)back.transform, new Vector2(0f, 0f), new Vector2(40f, 40f), new Vector2(220f, 70f));
     }
 
-    private void BuildTrackList(Transform root, bool championship)
+    private void BuildTrackList(Transform root, bool championship, RaceSetup.Screen screen)
     {
         RectTransform left = LowPolyUI.Panel(root, "TrackPanel", LowPolyUI.PanelColor);
         LowPolyUI.Place(left, new Vector2(0f, 1f), new Vector2(40f, -170f), new Vector2(600f, 700f));
@@ -310,9 +312,9 @@ public partial class LowPolyRaceBootstrap
         Header(left, championship ? "ROUNDS" : (pages > 1 ? $"TRACK   {trackPage + 1} OF {pages}" : "TRACK"), -16f);
         if (pages > 1)
         {
-            Image prev = LowPolyUI.Button(left, "<", 26, () => { trackPage = (trackPage + pages - 1) % pages; ShowScreen(RaceSetup.Screen.Setup); });
+            Image prev = LowPolyUI.Button(left, "<", 26, () => { trackPage = (trackPage + pages - 1) % pages; ShowScreen(screen); });
             LowPolyUI.Place((RectTransform)prev.transform, new Vector2(1f, 1f), new Vector2(-90f, -10f), new Vector2(50f, 40f));
-            Image next = LowPolyUI.Button(left, ">", 26, () => { trackPage = (trackPage + 1) % pages; ShowScreen(RaceSetup.Screen.Setup); });
+            Image next = LowPolyUI.Button(left, ">", 26, () => { trackPage = (trackPage + 1) % pages; ShowScreen(screen); });
             LowPolyUI.Place((RectTransform)next.transform, new Vector2(1f, 1f), new Vector2(-30f, -10f), new Vector2(50f, 40f));
         }
 
@@ -327,7 +329,7 @@ public partial class LowPolyRaceBootstrap
             {
                 if (championship || index == RaceSetup.trackIndex) return;
                 RaceSetup.trackIndex = index;
-                ShowScreen(RaceSetup.Screen.Setup);
+                ShowScreen(screen);
                 ReloadPreview();
             });
             LowPolyUI.Place((RectTransform)card.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -62f - slot * 126f), new Vector2(560f, 116f));
@@ -433,45 +435,17 @@ public partial class LowPolyRaceBootstrap
         float y = -84f;
         if (!timeTrial)
         {
-            Header(right, "OPPONENTS", y);
-            ChoiceRow(right, 30f, y - 34f, new[] { "1", "3", "5" }, Array.IndexOf(RaceSetup.OpponentOptions, RaceSetup.opponents), 72f,
-                i => RaceSetup.opponents = RaceSetup.OpponentOptions[i]);
+            bool multi = RaceSetup.mode == RaceSetup.Mode.Multiplayer;
+            Header(right, multi ? "AI CARS" : "OPPONENTS", y);
+            if (multi)
+                ChoiceRow(right, 30f, y - 34f, new[] { "0", "1", "3" }, Array.IndexOf(Multiplayer.OpponentOptions, Multiplayer.opponents), 72f,
+                    i => Multiplayer.opponents = Multiplayer.OpponentOptions[i]);
+            else
+                ChoiceRow(right, 30f, y - 34f, new[] { "1", "3", "5" }, Array.IndexOf(RaceSetup.OpponentOptions, RaceSetup.opponents), 72f,
+                    i => RaceSetup.opponents = RaceSetup.OpponentOptions[i]);
             Header(right, "DIFFICULTY", y, 290f);
             ChoiceRow(right, 290f, y - 34f, new[] { "EASY", "MID", "HARD" }, RaceSetup.difficulty, 80f, i => RaceSetup.difficulty = i, 48f, 20);
             y -= 100f;
-        }
-
-        if (RaceSetup.mode == RaceSetup.Mode.QuickRace)
-        {
-            Header(right, "PLAYERS   |   SPLIT SCREEN", y);
-            ChoiceRow(right, 30f, y - 34f, new[] { "1", "2" }, RaceSetup.players - 1, 72f, i =>
-            {
-                RaceSetup.players = i + 1;
-                ShowScreen(RaceSetup.Screen.Setup);
-            });
-            if (RaceSetup.players == 2)
-            {
-                Image p2car = LowPolyUI.Button(right, "P2  " + LowPolyCarFactory.StyleNames[(int)RaceSetup.carStyle2], 20, null, out Text p2label);
-                p2car.GetComponent<Button>().onClick.AddListener(() =>
-                {
-                    int s = (int)RaceSetup.carStyle2;
-                    do { s = (s + 1) % LowPolyCarFactory.StyleNames.Length; } while (!Profile.IsUnlocked((LowPolyCarFactory.BodyStyle)s));
-                    RaceSetup.carStyle2 = (LowPolyCarFactory.BodyStyle)s;
-                    p2label.text = "P2  " + LowPolyCarFactory.StyleNames[s];
-                });
-                LowPolyUI.Place((RectTransform)p2car.transform, new Vector2(0f, 1f), new Vector2(200f, y - 34f), new Vector2(220f, 48f));
-                Image p2color = LowPolyUI.Button(right, "", 10, null);
-                p2color.color = CarColors[RaceSetup.carColor2];
-                p2color.GetComponent<Button>().onClick.AddListener(() =>
-                {
-                    RaceSetup.carColor2 = (RaceSetup.carColor2 + 1) % 8;
-                    p2color.color = CarColors[RaceSetup.carColor2];
-                });
-                LowPolyUI.Place((RectTransform)p2color.transform, new Vector2(0f, 1f), new Vector2(430f, y - 34f), new Vector2(48f, 48f));
-                Text keys = LowPolyUI.Label(right, "P2 KEYS   ARROWS, RIGHT CTRL DRIFT, RIGHT SHIFT NITRO, ENTER RESET", 16, TextAnchor.UpperLeft, Dim, "P2Keys", true);
-                LowPolyUI.Place(keys.rectTransform, new Vector2(0f, 1f), new Vector2(30f, y - 88f), new Vector2(540f, 22f));
-            }
-            y -= 120f;
         }
 
         Header(right, "TIME", y);
@@ -548,7 +522,6 @@ public partial class LowPolyRaceBootstrap
         trackEditor.onTestDrive = index =>
         {
             RaceSetup.mode = RaceSetup.Mode.QuickRace;
-            RaceSetup.players = 1;
             RaceSetup.trackIndex = TrackLibrary.All.Length + index;
             RaceSetup.configured = true;
             SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);

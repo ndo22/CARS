@@ -94,6 +94,10 @@ public class Minimap : MonoBehaviour
         foreach (var pair in dots)
         {
             if (pair.Key == null) continue;
+            // Vyřazené auto (vypnutý objekt) na mapě nezobrazovat
+            bool visible = pair.Key.gameObject.activeInHierarchy;
+            if (pair.Value.gameObject.activeSelf != visible) pair.Value.gameObject.SetActive(visible);
+            if (!visible) continue;
             Vector2 uv = ToUv(pair.Key.position);
             pair.Value.anchoredPosition = new Vector2((uv.x - 0.5f) * size.x, (uv.y - 0.5f) * size.y);
         }

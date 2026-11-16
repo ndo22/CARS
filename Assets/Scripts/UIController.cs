@@ -34,6 +34,8 @@ public class UIController : MonoBehaviour
     [Tooltip("Odpočet 3-2-1-GO před závodem.")]
     public bool useCountdown = true;
     public int countdownFrom = 3;
+    [Tooltip("Odpočet zastaví a pak pustí auta. Ve split-screenu ho ukazují všichni hráči, auta ovládá jen jeden.")]
+    public bool countdownControlsCars = true;
 
     private int currentLap = -1;
     private float currentTime = -1f;
@@ -80,7 +82,7 @@ public class UIController : MonoBehaviour
 
     private IEnumerator Countdown()
     {
-        CarController[] cars = FindObjectsOfType<CarController>();
+        CarController[] cars = countdownControlsCars ? FindObjectsOfType<CarController>() : new CarController[0];
         foreach (var car in cars) car.InputEnabled = false;
 
         // Chvilka na načtení scény

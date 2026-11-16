@@ -79,6 +79,7 @@ public static class Mathf {
   float r=Lerp2(Lerp2(Grad(P(A),x,y),Grad(P(B),x-1,y),u),Lerp2(Grad(P(A+1),x,y-1),Grad(P(B+1),x-1,y-1),u),v);return Clamp01(r*0.5f+0.5f);}
  static float Lerp2(float a,float b,float t)=>a+(b-a)*t;
 }
+public struct Rect { public float x,y,width,height; public Rect(float x,float y,float w,float h){this.x=x;this.y=y;width=w;height=h;} public float xMin=>x; public float yMin=>y; public float xMax=>x+width; public float yMax=>y+height; }
 public class Object { public string name; }
 public class Material : Object { public Material(string n){name=n;} }
 public class Mesh : Object { public Rendering.IndexFormat indexFormat; public List<Vector3> v; public List<int>[] t; public int subMeshCount{get=>t.Length;set=>t=new List<int>[value];}

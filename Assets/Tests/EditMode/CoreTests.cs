@@ -209,6 +209,88 @@ public class AudioTests
     }
 }
 
+public class MultiplayerTests
+{
+    [Test]
+    public void ViewportsTileTheScreenWithoutOverlap()
+    {
+        for (int count = 2; count <= Multiplayer.MaxPlayers; count++)
+        {
+            float area = 0f;
+            for (int i = 0; i < count; i++)
+            {
+                Rect a = Multiplayer.Viewport(i, count);
+                Assert.IsTrue(a.xMin >= 0f && a.yMin >= 0f && a.xMax <= 1f && a.yMax <= 1f, "viewport outside the screen");
+                area += a.width * a.height;
+                for (int j = i + 1; j < count; j++)
+                {
+                    Rect b = Multiplayer.Viewport(j, count);
+                    bool overlap = a.xMin < b.xMax - 0.001f && b.xMin < a.xMax - 0.001f && a.yMin < b.yMax - 0.001f && b.yMin < a.yMax - 0.001f;
+                    Assert.IsFalse(overlap, count + " players: " + i + " overlaps " + j);
+                }
+            }
+            // U 3 hráčů zbývá čtvrtina na přehledovou kameru
+            Assert.AreEqual(count == 3 ? 0.75f : 1f, area, 0.001f);
+        }
+        // Hráč 1 je vždy nahoře vlevo
+        Assert.AreEqual(1f, Multiplayer.Viewport(0, 4).yMax, 0.001f);
+        Assert.AreEqual(0f, Multiplayer.Viewport(0, 4).xMin, 0.001f);
+    }
+
+    [Test]
+    public void TheLastCarStillRacingIsEliminated()
+    {
+        var progress = new List<float> { 5f, 2f, 7f, 1f };
+        var racing = new List<bool> { true, true, true, false };
+        Assert.AreEqual(1, Multiplayer.PickEliminated(progress, racing));
+        racing = new List<bool> { false, false, true, false };
+        Assert.AreEqual(-1, Multiplayer.PickEliminated(progress, racing), "the last one left is never eliminated");
+    }
+
+    [Test]
+    public void OneEliminationPerLapUntilOneIsLeft()
+    {
+        Assert.AreEqual(0, Multiplayer.EliminationsDue(0, 4));
+        Assert.AreEqual(2, Multiplayer.EliminationsDue(2, 4));
+        Assert.AreEqual(3, Multiplayer.EliminationsDue(9, 4));
+        Assert.AreEqual(1, Multiplayer.EliminationsDue(5, 2));
+    }
+
+    [Test]
+    public void PlayersNeverShareAColor()
+    {
+        int[] saved = (int[])Multiplayer.colors.Clone();
+        try
+        {
+            for (int i = 0; i < 4; i++) Multiplayer.colors[i] = i;
+            for (int step = 0; step < 20; step++)
+            {
+                int player = step % 4;
+                Multiplayer.colors[player] = Multiplayer.NextFreeColor(player, 8, 4);
+                for (int a = 0; a < 4; a++)
+                    for (int b = a + 1; b < 4; b++)
+                        Assert.AreNotEqual(Multiplayer.colors[a], Multiplayer.colors[b]);
+            }
+        }
+        finally
+        {
+            for (int i = 0; i < saved.Length; i++) Multiplayer.colors[i] = saved[i];
+        }
+    }
+
+    [Test]
+    public void MatchScoreCountsWins()
+    {
+        Multiplayer.ResetMatch();
+        Multiplayer.RecordWin(1);
+        Multiplayer.RecordWin(1);
+        Multiplayer.RecordWin(-1); // vyhrál počítač
+        Assert.AreEqual(3, Multiplayer.roundsPlayed);
+        Assert.AreEqual("P1 0   P2 2   P3 0", Multiplayer.MatchScore(3));
+        Multiplayer.ResetMatch();
+    }
+}
+
 public class BreakableTests
 {
     [Test]

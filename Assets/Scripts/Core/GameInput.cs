@@ -7,7 +7,9 @@ using UnityEngine;
 /// Gamepad: levá páčka zatáčí, RT plyn, LT brzda, A nitro, X ruční brzda, Y kamera, Back reset, Start pauza.
 ///
 /// Hráč: -1 = jeden hráč (všechna zařízení), 0 = hráč 1 ve split-screenu (přemapovatelné klávesy + gamepad 1),
-/// 1 = hráč 2 (šipky, pravý Ctrl drift, pravý Shift nitro, Enter reset + gamepad 2).
+/// 1 = hráč 2 (šipky, pravý Ctrl drift, pravý Shift nitro, Enter reset + gamepad 2),
+/// 2 = hráč 3 (I J K L, U drift, O nitro, H reset + gamepad 3),
+/// 3 = hráč 4 (numerická klávesnice 8 5 4 6, 0 drift, Enter nitro, tečka reset + gamepad 4).
 /// </summary>
 public static class GameInput
 {
@@ -32,6 +34,19 @@ public static class GameInput
         KeyCode.UpArrow, KeyCode.DownArrow, KeyCode.LeftArrow, KeyCode.RightArrow, KeyCode.RightControl, KeyCode.RightShift,
         KeyCode.Return, KeyCode.None, KeyCode.P
     };
+
+    private static readonly KeyCode[] PlayerThree =
+    {
+        KeyCode.I, KeyCode.K, KeyCode.J, KeyCode.L, KeyCode.U, KeyCode.O, KeyCode.H, KeyCode.None, KeyCode.None
+    };
+
+    private static readonly KeyCode[] PlayerFour =
+    {
+        KeyCode.Keypad8, KeyCode.Keypad5, KeyCode.Keypad4, KeyCode.Keypad6, KeyCode.Keypad0, KeyCode.KeypadEnter,
+        KeyCode.KeypadPeriod, KeyCode.None, KeyCode.None
+    };
+
+    private static readonly KeyCode[][] OtherPlayers = { PlayerTwo, PlayerThree, PlayerFour };
 
     // Tlačítka gamepadu: index tlačítka (JoystickButtonN)
     private static readonly int[] PadButtons = { -1, -1, -1, -1, 2, 0, 6, 3, 7 };
@@ -92,9 +107,10 @@ public static class GameInput
     private static bool Check(Action action, int player, Func<KeyCode, bool> test)
     {
         int i = (int)action;
-        if (player == 1)
+        if (player >= 1)
         {
-            if (PlayerTwo[i] != KeyCode.None && test(PlayerTwo[i])) return true;
+            KeyCode[] keys = OtherPlayers[Mathf.Min(player, OtherPlayers.Length) - 1];
+            if (keys[i] != KeyCode.None && test(keys[i])) return true;
         }
         else
         {
@@ -103,8 +119,8 @@ public static class GameInput
         }
         if (PadButtons[i] >= 0)
         {
-            // -1: libovolný gamepad, 0: gamepad 1, 1: gamepad 2
-            KeyCode pad = player < 0 ? KeyCode.JoystickButton0 : (player == 0 ? KeyCode.Joystick1Button0 : KeyCode.Joystick2Button0);
+            // -1: libovolný gamepad, 0..3: gamepad 1..4 (v KeyCode jsou tlačítka gamepadů po 20)
+            KeyCode pad = player < 0 ? KeyCode.JoystickButton0 : KeyCode.Joystick1Button0 + 20 * Mathf.Min(player, 7);
             if (test(pad + PadButtons[i])) return true;
         }
         return false;

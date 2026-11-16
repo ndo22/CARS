@@ -15,6 +15,8 @@ public partial class LowPolyRaceBootstrap
         public RectTransform nitroFill;
         public CarController chaseCar; // režim POLICE CHASE (bez RacerBase)
         public Text drift;
+        public CameraFollow2 follow;    // kamera hráče (vyřazený hráč sleduje vedoucího)
+        public ChaseCameraFX cameraFx;
     }
 
     private readonly List<Player> humans = new List<Player>();
@@ -34,7 +36,7 @@ public partial class LowPolyRaceBootstrap
     private bool ghostBeaten;
     private ReplaySystem replay;
 
-    private bool SplitScreen => RaceSetup.Players == 2;
+    private bool SplitScreen => RaceSetup.Players >= 2;
 
     // ================================================================ start
 
@@ -53,7 +55,9 @@ public partial class LowPolyRaceBootstrap
 
         int opponentCount = RaceSetup.Opponents;
         float baseSkill = RaceSetup.DifficultySkill[Mathf.Clamp(RaceSetup.difficulty, 0, 2)];
-        var usedColors = new List<int> { RaceSetup.colorIndex, SplitScreen ? RaceSetup.carColor2 : -1 };
+        var usedColors = new List<int> { RaceSetup.colorIndex };
+        if (SplitScreen)
+            for (int h = 0; h < RaceSetup.Players; h++) usedColors.Add(Multiplayer.colors[h]);
         float grip = theme.rain ? (theme.scenery == TrackTheme.Scenery.Snow ? 0.72f : 0.78f) : 1f;
 
         // Soupeři startují vepředu, hráči z posledních pozic
@@ -72,9 +76,10 @@ public partial class LowPolyRaceBootstrap
         for (int h = 0; h < RaceSetup.Players; h++)
         {
             GridSlot(opponentCount + h, out Vector3 pos, out Quaternion rot);
+            // Hráč 1 má auto, barvu a kosmetiku z garáže, další hráči auto a barvu z menu multiplayeru
             Player p = h == 0
                 ? CreatePlayer(pos, rot, RaceSetup.carStyle, PlayerPalette(), RaceSetup.number, SplitScreen ? 0 : -1)
-                : CreatePlayer(pos, rot, RaceSetup.carStyle2, CarPalette(CarColors[RaceSetup.carColor2]), RaceSetup.number % 99 + 1, 1);
+                : CreatePlayer(pos, rot, Multiplayer.styles[h], CarPalette(CarColors[Multiplayer.colors[h]]), (RaceSetup.number + h * 11) % 99 + 1, h);
             p.DisplayName = SplitScreen ? "P" + (h + 1) : "YOU";
             p.Controller.gripMultiplier = grip;
             humans.Add(p);
@@ -87,9 +92,13 @@ public partial class LowPolyRaceBootstrap
         {
             Camera cam = CreateCameras(humans[h].Controller, h);
             Canvas canvas = SplitScreen ? LowPolyUI.CreateCanvas("HudP" + (h + 1), cam) : raceCanvas;
-            huds.Add(CreatePlayerHud(humans[h], canvas, h == 0));
+            PlayerHud playerHud = CreatePlayerHud(humans[h], canvas, h == 0);
+            playerHud.follow = cam.GetComponent<CameraFollow2>();
+            playerHud.cameraFx = cam.GetComponent<ChaseCameraFX>();
+            huds.Add(playerHud);
         }
         hud = huds[0].ui;
+        if (SplitScreen) SetupSplitScreenExtras();
         CreatePauseMenu();
 
         if (RaceSetup.mode == RaceSetup.Mode.TimeTrial)
@@ -316,8 +325,8 @@ public partial class LowPolyRaceBootstrap
 
         if (SplitScreen)
         {
-            // Hráč 1 nahoře, hráč 2 dole
-            chaseCam.rect = playerIndex == 0 ? new Rect(0f, 0.5f, 1f, 0.5f) : new Rect(0f, 0f, 1f, 0.5f);
+            // 2 hráči nad sebou, 3-4 hráči ve čtvrtinách
+            chaseCam.rect = Multiplayer.Viewport(playerIndex, humans.Count);
             return chaseCam;
         }
 
@@ -340,7 +349,7 @@ public partial class LowPolyRaceBootstrap
     private PlayerHud CreatePlayerHud(Player p, Canvas canvas, bool primary)
     {
         Transform root = canvas.transform;
-        Color playerColor = p == humans[0] ? CarColors[RaceSetup.colorIndex] : CarColors[RaceSetup.carColor2];
+        Color playerColor = HumanColor(humans.IndexOf(p));
         float panelAlpha = GameSettings.HighContrast ? 0.9f : 0.6f;
 
         RectTransform panel = LowPolyUI.Panel(root, "RacePanel", new Color(0.03f, 0.05f, 0.1f, panelAlpha));
@@ -376,13 +385,13 @@ public partial class LowPolyRaceBootstrap
         LowPolyUI.Place(drift.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, 190f), new Vector2(600f, 60f));
         drift.enabled = false;
 
-        if (!SplitScreen || primary)
+        if (!SplitScreen || (primary && humans.Count == 2))
         {
             Minimap minimap = Minimap.Create((RectTransform)root, track.centers, settings.roadWidth, SplitScreen ? 220f : 300f);
             foreach (var ai in opponents)
                 minimap.AddRacer(ai.transform, ai.GetComponentInChildren<MeshRenderer>().sharedMaterials[0].color, false);
             for (int h = 0; h < humans.Count; h++)
-                minimap.AddRacer(humans[h].transform, h == 0 ? CarColors[RaceSetup.colorIndex] : CarColors[RaceSetup.carColor2], true);
+                minimap.AddRacer(humans[h].transform, HumanColor(h), true);
         }
 
         var manager = new GameObject("HudManager" + p.DisplayName);
@@ -395,10 +404,11 @@ public partial class LowPolyRaceBootstrap
         ui.UITextAIBestLap = lines[2];
         ui.UpdateUIForPlayer = p;
         ui.UpdateUIForAIPlayer = opponents.Count > 0 ? opponents[0] : null;
-        ui.totalLaps = RaceSetup.laps;
+        ui.totalLaps = Elimination ? 0 : RaceSetup.laps;
         ui.lowPolyStyle = true;
         ui.overlayFont = LowPolyUI.numberFont;
-        ui.useCountdown = primary; // odpočet stačí jeden
+        ui.useCountdown = true;           // odpočet vidí každý hráč
+        ui.countdownControlsCars = primary; // ale auta zastaví a pustí jen jeden
         if (opponents.Count == 0) lines[2].text = "";
         if (primary) manager.AddComponent<TuningOverlay>().car = p.Controller;
 
@@ -428,7 +438,7 @@ public partial class LowPolyRaceBootstrap
         {
             () => pauseMenu.Resume(),
             () => pauseMenu.Restart(),
-            () => { RaceSetup.configured = false; RaceSetup.screen = RaceSetup.Screen.Setup; Championship.active = false; pauseMenu.Restart(); },
+            () => { RaceSetup.configured = false; RaceSetup.screen = RaceSetup.SetupScreen; Championship.active = false; pauseMenu.Restart(); },
             () => { Championship.active = false; pauseMenu.LoadMenu(); },
         };
         for (int i = 0; i < labels.Length; i++)
@@ -480,6 +490,7 @@ public partial class LowPolyRaceBootstrap
     private void UpdateRace()
     {
         if (!racing) return;
+        UpdateMultiplayer();
         bool paused = PauseMenu.GameIsPaused;
         foreach (var h in huds)
         {
@@ -503,6 +514,11 @@ public partial class LowPolyRaceBootstrap
     {
         if (finishOrder.Contains(p)) return;
         AddLapTime(p, lapTime);
+        if (Elimination)
+        {
+            OnEliminationLap(p);
+            return;
+        }
         UIController ui = huds.Find(h => h.player == p).ui;
 
         int lapsDone = p.CurrentLap; // událost přichází před započetím dalšího kola
@@ -513,7 +529,8 @@ public partial class LowPolyRaceBootstrap
         finishOrder.Add(p);
         finishTimes[p] = RacerTime(p);
         p.Controller.InputEnabled = false;
-        ui.ShowMessage("FINISH!", 2f, Color.white);
+        ui.ShowMessage(SplitScreen && finishOrder.FindAll(r => r is Player).Count == 1 ? "WINNER!" : "FINISH!", 2f, Color.white);
+        StartFinishGrace();
 
         // Výsledky, až dojedou všichni lidští hráči
         if (humans.TrueForAll(h => finishOrder.Contains(h)) && !resultsShown)
@@ -524,6 +541,11 @@ public partial class LowPolyRaceBootstrap
     {
         if (finishOrder.Contains(ai)) return;
         AddLapTime(ai, lapTime);
+        if (Elimination)
+        {
+            OnEliminationLap(ai);
+            return;
+        }
         if (ai.CurrentLap >= RaceSetup.laps)
         {
             finishOrder.Add(ai);
@@ -534,10 +556,20 @@ public partial class LowPolyRaceBootstrap
     /// <summary>Konečné pořadí: kdo dojel, podle pořadí v cíli; zbytek podle ujeté vzdálenosti.</summary>
     private List<RacerBase> FinalOrder()
     {
+        if (Elimination)
+        {
+            // Kdo zbyl (podle postupu), pak vyřazení od posledního vyřazeného
+            List<RacerBase> left = ActiveRacers();
+            left.Sort((a, b) => b.RaceProgress.CompareTo(a.RaceProgress));
+            for (int i = eliminatedOrder.Count - 1; i >= 0; i--) left.Add(eliminatedOrder[i]);
+            return left;
+        }
         var order = new List<RacerBase>(finishOrder);
         var rest = new List<RacerBase>();
         foreach (var ai in opponents)
             if (!order.Contains(ai)) rest.Add(ai);
+        foreach (var h in humans)
+            if (!order.Contains(h)) rest.Add(h); // hráč, který nestihl dojet (limit 30 s)
         rest.Sort((a, b) => b.RaceProgress.CompareTo(a.RaceProgress));
         order.AddRange(rest);
         return order;
@@ -575,13 +607,14 @@ public partial class LowPolyRaceBootstrap
         RectTransform panel = LowPolyUI.Panel(root, "Results", new Color(0.03f, 0.05f, 0.1f, 0.92f));
         LowPolyUI.Place(panel, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(championship ? 1180f : 820f, 820f));
 
-        string heading = championship ? $"ROUND {Championship.round + 1} OF {Championship.Rounds}" : timeTrial ? "TIME TRIAL" : "RACE FINISHED";
+        string heading = championship ? $"ROUND {Championship.round + 1} OF {Championship.Rounds}" : timeTrial ? "TIME TRIAL" : Elimination ? "ELIMINATION" : "RACE FINISHED";
         Text title = LowPolyUI.Label(panel, heading, 36, TextAnchor.MiddleCenter, Dim, "Title");
         LowPolyUI.Place(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -26f), new Vector2(760f, 46f));
 
         Color[] medal = { new Color(1f, 0.82f, 0.2f), new Color(0.8f, 0.84f, 0.9f), new Color(0.85f, 0.55f, 0.3f) };
         float leftX = championship ? -190f : 0f;
-        string big = timeTrial ? "DONE" : SplitScreen ? (order.IndexOf(humans[0]) < order.IndexOf(humans[1]) ? "P1 WINS" : "P2 WINS") : Ordinal(position);
+        if (SplitScreen) Multiplayer.RecordWin(order[0] is Player winner ? humans.IndexOf(winner) : -1);
+        string big = timeTrial ? "DONE" : SplitScreen ? order[0].DisplayName + " WINS" : Ordinal(position);
         Text pos = LowPolyUI.Label(panel, big, SplitScreen ? 90 : 120, TextAnchor.MiddleCenter,
             !timeTrial && !SplitScreen && position <= 3 ? medal[position - 1] : Color.white, "Position");
         LowPolyUI.Place(pos.rectTransform, new Vector2(0.5f, 1f), new Vector2(leftX, -76f), new Vector2(700f, 140f));
@@ -594,15 +627,26 @@ public partial class LowPolyRaceBootstrap
         {
             RacerBase r = order[i];
             bool human = r is Player;
-            string t = finishTimes.TryGetValue(r, out float ft) ? TimeFormat.FormatRacing(ft) : "RUNNING";
+            string t = finishTimes.TryGetValue(r, out float ft) ? TimeFormat.FormatRacing(ft)
+                : Elimination ? (eliminatedOrder.Contains(r) ? "OUT" : "WINNER")
+                : human ? "DNF" : "RUNNING";
             int points = championship && i < Championship.Points.Length ? Championship.Points[i] : 0;
-            ResultRow(panel, $"{i + 1}.  {r.DisplayName}", t, championship ? $"{points} PTS" : "", leftX, y, human ? LowPolyUI.Accent : Color.white);
+            Color rowColor = !human ? Color.white : SplitScreen ? Color.Lerp(HumanColor(humans.IndexOf((Player)r)), Color.white, 0.35f) : LowPolyUI.Accent;
+            ResultRow(panel, $"{i + 1}.  {r.DisplayName}", t, championship ? $"{points} PTS" : "", leftX, y, rowColor);
             y -= 40f;
         }
         y -= 10f;
-        ResultRow(panel, "BEST LAP", TimeFormat.FormatRacing(player.BestLapTime), "", leftX, y, Dim);
+        Player fastest = player;
+        foreach (var h in humans) if (h.BestLapTime < fastest.BestLapTime) fastest = h;
+        ResultRow(panel, SplitScreen ? "BEST LAP  " + fastest.DisplayName : "BEST LAP", TimeFormat.FormatRacing(fastest.BestLapTime), "", leftX, y, Dim);
         y -= 40f;
-        if (player.BestLapTime < recordBefore)
+        if (SplitScreen)
+        {
+            Text match = LowPolyUI.Label(panel, "MATCH     " + Multiplayer.MatchScore(humans.Count), 26, TextAnchor.MiddleCenter, LowPolyUI.Accent, "Match", true);
+            LowPolyUI.Place(match.rectTransform, new Vector2(0.5f, 1f), new Vector2(leftX, y), new Vector2(760f, 36f));
+            y -= 40f;
+        }
+        if (fastest.BestLapTime < recordBefore)
         {
             Text record = LowPolyUI.Label(panel, "NEW TRACK RECORD!", 30, TextAnchor.MiddleCenter, LowPolyUI.Accent, "Record");
             LowPolyUI.Place(record.rectTransform, new Vector2(0.5f, 1f), new Vector2(leftX, y), new Vector2(700f, 40f));
@@ -660,7 +704,7 @@ public partial class LowPolyRaceBootstrap
         }
         else
         {
-            labels.Add(championship ? "NEW SEASON" : "RACE AGAIN");
+            labels.Add(championship ? "NEW SEASON" : SplitScreen ? "REMATCH" : "RACE AGAIN");
             actions.Add(() =>
             {
                 if (RaceSetup.mode == RaceSetup.Mode.Championship)
@@ -681,7 +725,7 @@ public partial class LowPolyRaceBootstrap
             replay.Play(() => { foreach (var c in canvases) if (c != null) c.enabled = true; });
         });
         labels.Add("CHANGE");
-        actions.Add(() => { RaceSetup.configured = false; RaceSetup.screen = RaceSetup.Screen.Setup; Championship.active = false; pauseMenu.Restart(); });
+        actions.Add(() => { RaceSetup.configured = false; RaceSetup.screen = RaceSetup.SetupScreen; Championship.active = false; pauseMenu.Restart(); });
         labels.Add("MENU");
         actions.Add(() => { Championship.active = false; pauseMenu.LoadMenu(); });
 

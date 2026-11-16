@@ -6,8 +6,8 @@ using UnityEngine;
 /// </summary>
 public static class RaceSetup
 {
-    public enum Screen { Title, Setup, Settings, Editor, Achievements, Levels }
-    public enum Mode { QuickRace, Championship, TimeTrial, Chase }
+    public enum Screen { Title, Setup, Settings, Editor, Achievements, Levels, Multiplayer }
+    public enum Mode { QuickRace, Championship, TimeTrial, Chase, Multiplayer }
 
     /// <summary>true = hráč už si vybral a scéna má rovnou spustit závod (např. po restartu).</summary>
     public static bool configured;
@@ -25,10 +25,6 @@ public static class RaceSetup
     public static bool rain;
     /// <summary>Podmínky se během závodu mění: z dne do noci / ze sucha do deště.</summary>
     public static bool dynamicTime, dynamicWeather;
-    /// <summary>Počet hráčů (2 = split-screen, jen v rychlém závodě).</summary>
-    public static int players = 1;
-    public static int carColor2 = 1;
-    public static LowPolyCarFactory.BodyStyle carStyle2 = LowPolyCarFactory.BodyStyle.Muscle;
     /// <summary>Kosmetika: vzor laku, barva disků, startovní číslo.</summary>
     public static int pattern, rims, number = 7;
     /// <summary>Level režimu POLICE CHASE (1..15).</summary>
@@ -42,8 +38,12 @@ public static class RaceSetup
     public static readonly string[] DifficultyNames = { "EASY", "NORMAL", "HARD" };
     public static readonly float[] DifficultySkill = { 0.82f, 0.93f, 1.03f };
 
-    public static int Opponents => mode == Mode.TimeTrial ? 0 : opponents;
-    public static int Players => mode == Mode.QuickRace ? Mathf.Clamp(players, 1, 2) : 1;
+    public static int Opponents => mode == Mode.TimeTrial ? 0 : mode == Mode.Multiplayer ? Multiplayer.opponents : opponents;
+    /// <summary>Počet lidských hráčů (2-4 = split-screen v režimu MULTIPLAYER).</summary>
+    public static int Players => mode == Mode.Multiplayer ? Multiplayer.Players : 1;
+
+    /// <summary>Obrazovka menu, na kterou se vrací tlačítko CHANGE pro aktuální režim.</summary>
+    public static Screen SetupScreen => mode == Mode.Multiplayer ? Screen.Multiplayer : mode == Mode.Chase ? Screen.Levels : Screen.Setup;
 }
 
 /// <summary>Šampionát: série všech tratí, body za umístění.</summary>

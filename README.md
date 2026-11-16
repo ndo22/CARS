@@ -95,9 +95,27 @@ policejní AI v `ChaseAI`, hra v `LowPolyRaceBootstrap.Chase.cs`.
 ![Speciální auta](Docs/chase-cars.png)
 ![Zničitelné objekty](Docs/breakables.png)
 
+### Režim MULTIPLAYER (lokální, split-screen)
+
+Titulní menu → MULTIPLAYER: **2 až 4 hráči na jedné obrazovce**, každý si vybere auto (z odemčených) a barvu.
+Dva hráči mají obrazovku nad sebou, tři a čtyři ve čtvrtinách (u tří zbývající čtvrtina ukazuje vedoucí auto shora a mapu).
+
+| Hráč | Klávesnice (plyn, brzda, zatáčení / drift / nitro / reset) | Gamepad |
+|---|---|---|
+| P1 | W S A D / mezerník / Shift / R (přemapovatelné) | 1 |
+| P2 | šipky / pravý Ctrl / pravý Shift / Enter | 2 |
+| P3 | I K J L / U / O / H | 3 |
+| P4 | numerická 8 5 4 6 / 0 / Enter / tečka | 4 |
+
+- **RACE** – kdo první dojede, vyhrává; ostatní pak mají 30 s na dojetí, jinak DNF.
+- **ELIMINATION** – po každém kole vedoucího vypadne poslední auto (hráč pak sleduje vedoucího), vyhrává poslední, kdo zbyde.
+- Volitelně 0, 1 nebo 3 auta řízená počítačem, obtížnost, denní doba a počasí.
+- **Zápas**: tlačítko REMATCH spustí odvetu a skóre výher (P1 2   P2 1 …) se počítá, dokud se nevrátíte do menu.
+
+Logika (rozložení obrazovky, pravidla vyřazovačky, skóre) je v `Multiplayer`, menu a průběh v `LowPolyRaceBootstrap.Multiplayer.cs`.
+
 ### Další funkce
 
-- **Split-screen pro 2 hráče** (rychlý závod): hráč 1 má WASD a gamepad 1, hráč 2 šipky, pravý Ctrl (drift), pravý Shift (nitro), Enter (reset) a gamepad 2.
 - **Replay** po závodě: TV kamery u trati, kamera za autem, kroužící kamera, zpomalení a zrychlení, přepínání aut.
 - **Editor tratí** (titulní menu → TRACK EDITOR): body se klikají a táhnou myší, kolečkem se mění výška,
   trať se průběžně kontroluje (ostré zatáčky, křížení, stoupání). Uložené tratě jsou v seznamu tratí a dá se na nich hned jet.
