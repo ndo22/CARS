@@ -99,7 +99,7 @@ public partial class LowPolyRaceBootstrap
             Multiplayer.players = i + 2;
             ShowScreen(RaceSetup.Screen.Multiplayer);
         });
-        Text hint = LowPolyUI.Label(right, "CLICK A COLOR OR CAR TO CHANGE IT", 16, TextAnchor.MiddleLeft, Dim, "PlayersHint", true);
+        Text hint = LowPolyUI.Label(right, "CLICK A COLOR OR A CAR\nTO CHANGE IT", 16, TextAnchor.MiddleLeft, Dim, "PlayersHint", true);
         LowPolyUI.Place(hint.rectTransform, new Vector2(0f, 1f), new Vector2(290f, y - 34f), new Vector2(260f, 48f));
 
         y -= 100f;
@@ -186,11 +186,12 @@ public partial class LowPolyRaceBootstrap
 
         if (count >= 3)
         {
-            Minimap minimap = Minimap.Create((RectTransform)raceCanvas.transform, track.centers, settings.roadWidth, count == 3 ? 240f : 200f);
+            Minimap minimap = Minimap.Create((RectTransform)raceCanvas.transform, track.centers, settings.roadWidth, count == 3 ? 240f : 180f);
             var rect = (RectTransform)minimap.transform;
-            Vector2 anchor = count == 3 ? new Vector2(1f, 0f) : new Vector2(0.5f, 0.5f);
+            // 3 hráči: v rohu volné čtvrtiny; 4 hráči: dole uprostřed (střed obrazovky je roh HUD hráče 4)
+            Vector2 anchor = count == 3 ? new Vector2(1f, 0f) : new Vector2(0.5f, 0f);
             rect.anchorMin = rect.anchorMax = rect.pivot = anchor;
-            rect.anchoredPosition = count == 3 ? new Vector2(-24f, 24f) : Vector2.zero;
+            rect.anchoredPosition = count == 3 ? new Vector2(-24f, 24f) : new Vector2(0f, 16f);
             foreach (var ai in opponents)
                 minimap.AddRacer(ai.transform, ai.GetComponentInChildren<MeshRenderer>().sharedMaterials[0].color, false);
             for (int h = 0; h < count; h++)

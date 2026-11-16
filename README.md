@@ -114,6 +114,9 @@ Dva hráči mají obrazovku nad sebou, tři a čtyři ve čtvrtinách (u tří z
 
 Logika (rozložení obrazovky, pravidla vyřazovačky, skóre) je v `Multiplayer`, menu a průběh v `LowPolyRaceBootstrap.Multiplayer.cs`.
 
+![Menu multiplayeru](Docs/menu-multiplayer.png)
+![Závod 4 hráčů](Docs/multiplayer-4p.png)
+
 ### Další funkce
 
 - **Replay** po závodě: TV kamery u trati, kamera za autem, kroužící kamera, zpomalení a zrychlení, přepínání aut.
